@@ -1,0 +1,14 @@
+services:
+  api:
+    container_name: growly-back
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-3000}
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    restart: unless-stopped

@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,6 +12,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { Model } from 'mongoose';
+import { EmailService } from '../services/email.service';
 import {
   ChangeBlockedPasswordDto,
   LoginDto,
@@ -34,6 +36,7 @@ import {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly codeLifetimeMs = 30 * 60 * 1000;
 
   constructor(
@@ -42,6 +45,7 @@ export class AuthService {
     private readonly sessionModel: Model<AuthSessionDocument>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<IAuthResponse> {
@@ -54,6 +58,7 @@ export class AuthService {
       passwordHash: await bcrypt.hash(dto.password, 12),
     });
     const code = await this.assignVerificationCode(user, 'registration');
+    await this.sendCodeEmail(user, code, 'registration', false);
     return { user: this.mapUser(user), ...this.developmentCode(code) };
   }
 
@@ -72,6 +77,7 @@ export class AuthService {
     if (purpose === 'registration' && user.isValidated)
       throw new BadRequestException('User is already validated');
     const code = await this.assignVerificationCode(user, purpose);
+    await this.sendCodeEmail(user, code, purpose, true);
     return { user: this.mapUser(user), ...this.developmentCode(code) };
   }
 
@@ -103,11 +109,29 @@ export class AuthService {
       user.passwordChangeRequired = true;
     }
     await user.save();
+    if (purpose === 'registration') {
+      try {
+        await this.emailService.sendWelcome({
+          email: user.email,
+          name: user.name,
+        });
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Welcome email could not be delivered to ${user.email}`,
+          error instanceof Error ? error.message : undefined,
+        );
+      }
+    }
+    const passwordChangeToken =
+      purpose === 'unblock'
+        ? await this.signToken(user, 'password_change')
+        : undefined;
+    if (passwordChangeToken) {
+      await this.sendPasswordResetEmail(user, passwordChangeToken);
+    }
     return {
       user: this.mapUser(user),
-      ...(purpose === 'unblock'
-        ? { passwordChangeToken: await this.signToken(user, 'password_change') }
-        : {}),
+      ...(passwordChangeToken ? { passwordChangeToken } : {}),
     };
   }
 
@@ -127,11 +151,19 @@ export class AuthService {
       if (user.failedLoginAttempts >= 3) {
         user.isBlocked = true;
         user.passwordChangeRequired = true;
-        await this.assignVerificationCode(user, 'unblock');
+        const code = await this.assignVerificationCode(user, 'unblock');
         await this.sessionModel.updateMany(
           { userId: user._id.toString(), revokedAt: null },
           { revokedAt: new Date() },
         );
+        try {
+          await this.sendCodeEmail(user, code, 'unblock', false);
+        } catch (error: unknown) {
+          this.logger.warn(
+            `Blocked account email could not be delivered to ${user.email}`,
+            error instanceof Error ? error.message : undefined,
+          );
+        }
         throw new ForbiddenException(
           'User was blocked after three failed attempts',
         );
@@ -269,6 +301,7 @@ export class AuthService {
         throw new ConflictException('Email is already registered');
       user.pendingEmail = pendingEmail;
       code = await this.assignVerificationCode(user, 'email_change');
+      await this.sendCodeEmail(user, code, 'email_change', false);
     } else {
       await user.save();
     }
@@ -322,6 +355,71 @@ export class AuthService {
     user.verificationPurpose = purpose;
     await user.save();
     return code;
+  }
+
+  private async sendCodeEmail(
+    user: UserDocument,
+    code: string,
+    purpose: VerificationPurpose,
+    isResend: boolean,
+  ): Promise<void> {
+    const expiresAt = user.verificationCodeExpiresAt;
+    if (!expiresAt) {
+      throw new BadRequestException('Verification code expiration is missing');
+    }
+
+    if (purpose === 'unblock') {
+      await this.emailService.sendBlockedCode({
+        email: user.email,
+        name: user.name,
+        code,
+        expiresAt,
+        isResend,
+      });
+      return;
+    }
+
+    await this.emailService.sendVerificationCode({
+      email:
+        purpose === 'email_change' && user.pendingEmail
+          ? user.pendingEmail
+          : user.email,
+      name: user.name,
+      code,
+      purpose,
+      expiresAt,
+    });
+  }
+
+  private async sendPasswordResetEmail(
+    user: UserDocument,
+    passwordChangeToken: string,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_PASSWORD_RESET_URL',
+    );
+    if (!frontendUrl) {
+      this.logger.warn(
+        'FRONTEND_PASSWORD_RESET_URL is not configured; reset email skipped',
+      );
+      return;
+    }
+
+    const resetUrl = new URL(frontendUrl);
+    resetUrl.searchParams.set('token', passwordChangeToken);
+    try {
+      await this.emailService.sendPasswordReset({
+        email: user.email,
+        name: user.name,
+        resetLink: resetUrl.toString(),
+        expiresAt: new Date(Date.now() + this.codeLifetimeMs),
+      });
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Password reset email could not be delivered to ${user.email}`,
+        error instanceof Error ? error.message : undefined,
+      );
+    }
   }
 
   private signToken(

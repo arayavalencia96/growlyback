@@ -1,0 +1,43 @@
+<html lang='es'>
+  <head><meta charset='UTF-8' /><meta
+      name='viewport'
+      content='width=device-width'
+    /><title>Cuenta protegida</title></head>
+  <body
+    style='margin:0;background:#f7f5ef;font-family:Arial,sans-serif;color:#302d27'
+  >
+    <table role='presentation' width='100%' cellspacing='0' cellpadding='0'><tr
+      ><td style='padding:32px 16px'>
+          <table
+            role='presentation'
+            width='100%'
+            cellspacing='0'
+            cellpadding='0'
+            style='max-width:600px;margin:auto;background:#fff;border:1px solid #e8dfcc;border-radius:18px;overflow:hidden'
+          >
+            <tr><td style='padding:28px 32px;background:#282b29;color:#fff'><div
+                  style='font-size:13px;letter-spacing:2px;color:#efbd58'
+                >GROWLY SECURITY</div><h1
+                  style='margin:8px 0 0;font-size:26px'
+                >Protegimos tu cuenta</h1></td></tr>
+            <tr><td style='padding:30px 32px'><p>Hola {{name}},</p>{{#if
+                  isResend
+                }}<p>Solicitaste un nuevo código para recuperar el acceso a tu
+                    cuenta.</p>{{else}}<p>Detectamos tres intentos de acceso
+                    incorrectos para
+                    <strong>{{email}}</strong>
+                    y bloqueamos temporalmente la cuenta.</p>{{/if}}<p>Ingresa
+                  este código en Growly:</p><div
+                  style='margin:24px 0;padding:20px;text-align:center;background:#fff7e7;border:1px solid #f1cf88;border-radius:12px;font:700 34px monospace;letter-spacing:8px;color:#8c5710'
+                >{{code}}</div><p style='font-size:14px;color:#6c6559'>Vence en
+                  {{ttlMinutes}}
+                  minutos, el
+                  {{expiresAtFormatted}}. Nunca compartas este código.</p></td></tr>
+            <tr><td
+                style='padding:18px 32px;background:#faf9f6;font-size:12px;color:#756f64'
+              >{{supportEmail}}
+                Este es un mensaje automático; no respondas este correo.</td></tr>
+          </table>
+        </td></tr></table>
+  </body>
+</html>

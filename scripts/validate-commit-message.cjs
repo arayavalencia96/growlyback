@@ -21,7 +21,9 @@ if (!branchName) {
 }
 
 if (commitMessage !== branchName) {
-  console.error('ERROR: The commit message must exactly match the branch name.');
+  console.error(
+    'ERROR: The commit message must exactly match the branch name.',
+  );
   console.error('Branch:  ' + branchName);
   console.error('Message: ' + commitMessage);
   process.exit(1);

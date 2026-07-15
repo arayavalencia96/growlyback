@@ -8,7 +8,7 @@ import {
   UpdateGoalDto,
 } from './dto/goals.dto';
 import { Goal, GoalDocument } from './entity/goals.entity';
-import { GoalStatus, IGoalResponse } from './interfaces/goals.interface';
+import { IGoalResponse } from './interfaces/goals.interface';
 
 @Injectable()
 export class GoalsService {
@@ -98,7 +98,7 @@ export class GoalsService {
     }
 
     if (query.status) {
-      filter.status = query.status as GoalStatus;
+      filter.status = query.status;
     }
 
     if (query.currency) {

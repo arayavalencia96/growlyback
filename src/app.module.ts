@@ -6,6 +6,7 @@ import { GoalsMovementsModule } from './goals-movements/goals-movements.module';
 import { CommonModule } from './common/common.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthModule } from './common/auth/auth.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       isGlobal: true,
     }),
     CommonModule,
+    AuthModule,
     GoalsModule,
     GoalsMovementsModule,
     InvestmentOperationsModule,

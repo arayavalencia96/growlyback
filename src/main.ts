@@ -19,9 +19,10 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('My API')
-    .setDescription('API documentation')
+    .setTitle('Growly API')
+    .setDescription('Investment tracking API')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

@@ -20,11 +20,13 @@ import { IResult } from '../interfaces/common.interface';
 import { AuthService } from './auth.service';
 import {
   ChangeBlockedPasswordDto,
+  ForgotPasswordDto,
   LoginDto,
   LogoutDto,
   RefreshTokenDto,
   RegisterDto,
   RequestVerificationCodeDto,
+  ResetPasswordDto,
   UpdateProfileDto,
   VerifyCodeDto,
 } from './dto/auth.dto';
@@ -104,6 +106,36 @@ export class AuthController {
     return this.response(
       await this.authService.changeBlockedPassword(dto),
       'Password changed successfully',
+      HttpStatus.OK,
+    );
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse()
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<IResult<null>> {
+    await this.authService.forgotPassword(dto.email);
+    return {
+      result: null,
+      message: 'Password reset email requested',
+      description:
+        'If the account is eligible, password reset instructions were sent',
+      statuscode: HttpStatus.OK,
+      ok: true,
+    };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse()
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<IResult<IAuthResponse>> {
+    return this.response(
+      await this.authService.resetPassword(dto),
+      'Password reset successfully',
       HttpStatus.OK,
     );
   }

@@ -27,6 +27,7 @@ export interface ISendBlockedCodeEmailInput extends IEmailRecipient {
 export interface ISendPasswordResetEmailInput extends IEmailRecipient {
   resetLink: string;
   expiresAt: Date;
+  purpose: 'forgot_password' | 'unblock';
 }
 export type ISendWelcomeEmailInput = IEmailRecipient;
 export type EmailTemplateContext = Record<string, string | number | boolean>;

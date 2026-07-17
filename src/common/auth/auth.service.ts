@@ -10,13 +10,14 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
-import { randomInt } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import { Model } from 'mongoose';
 import { EmailService } from '../services/email.service';
 import {
   ChangeBlockedPasswordDto,
   LoginDto,
   RegisterDto,
+  ResetPasswordDto,
   UpdateProfileDto,
   VerifyCodeDto,
 } from './dto/auth.dto';
@@ -127,7 +128,7 @@ export class AuthService {
         ? await this.signToken(user, 'password_change')
         : undefined;
     if (passwordChangeToken) {
-      await this.sendPasswordResetEmail(user, passwordChangeToken);
+      await this.sendPasswordChangeEmail(user, passwordChangeToken, 'unblock');
     }
     return {
       user: this.mapUser(user),
@@ -208,7 +209,67 @@ export class AuthService {
     );
     return {
       user: this.mapUser(user),
-      ...(await this.issueTokenPair(user)),
+    };
+  }
+
+  async forgotPassword(emailValue: string): Promise<void> {
+    const email = emailValue.trim().toLowerCase();
+    const now = new Date();
+    const user = await this.userModel.findOneAndUpdate(
+      {
+        email,
+        isDisabled: false,
+        isValidated: true,
+        $or: [
+          { passwordResetRequestedAt: null },
+          {
+            passwordResetRequestedAt: {
+              $lte: new Date(now.getTime() - 60_000),
+            },
+          },
+        ],
+      },
+      { $set: { passwordResetRequestedAt: now } },
+      { returnDocument: 'after' },
+    );
+    if (!user) return;
+
+    const resetToken = randomBytes(32).toString('hex');
+    user.passwordResetTokenHash = this.hashResetToken(resetToken);
+    user.passwordResetExpiresAt = new Date(Date.now() + this.codeLifetimeMs);
+    await user.save();
+    await this.sendPasswordChangeEmail(user, resetToken, 'forgot_password');
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<IAuthResponse> {
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    const user = await this.userModel.findOneAndUpdate(
+      {
+        passwordResetTokenHash: this.hashResetToken(dto.resetToken),
+        passwordResetExpiresAt: { $gt: new Date() },
+        isDisabled: false,
+      },
+      {
+        $set: {
+          passwordHash,
+          passwordResetTokenHash: null,
+          passwordResetExpiresAt: null,
+          passwordResetRequestedAt: null,
+          passwordChangeRequired: false,
+          isBlocked: false,
+          failedLoginAttempts: 0,
+        },
+      },
+      { returnDocument: 'after' },
+    );
+    if (!user) throw new UnauthorizedException('Invalid password reset token');
+
+    await this.sessionModel.updateMany(
+      { userId: user._id.toString(), revokedAt: null },
+      { revokedAt: new Date() },
+    );
+    return {
+      user: this.mapUser(user),
     };
   }
 
@@ -391,28 +452,32 @@ export class AuthService {
     });
   }
 
-  private async sendPasswordResetEmail(
+  private async sendPasswordChangeEmail(
     user: UserDocument,
-    passwordChangeToken: string,
+    token: string,
+    purpose: 'forgot_password' | 'unblock',
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_PASSWORD_RESET_URL',
-    );
+    const configKey =
+      purpose === 'forgot_password'
+        ? 'FRONTEND_PASSWORD_RESET_URL'
+        : 'FRONTEND_BLOCKED_PASSWORD_CHANGE_URL';
+    const frontendUrl = this.configService.get<string>(configKey);
     if (!frontendUrl) {
       this.logger.warn(
-        'FRONTEND_PASSWORD_RESET_URL is not configured; reset email skipped',
+        configKey + ' is not configured; password email skipped',
       );
       return;
     }
 
     const resetUrl = new URL(frontendUrl);
-    resetUrl.searchParams.set('token', passwordChangeToken);
+    resetUrl.searchParams.set('token', token);
     try {
       await this.emailService.sendPasswordReset({
         email: user.email,
         name: user.name,
         resetLink: resetUrl.toString(),
         expiresAt: new Date(Date.now() + this.codeLifetimeMs),
+        purpose,
       });
     } catch (error: unknown) {
       this.logger.warn(
@@ -420,6 +485,10 @@ export class AuthService {
         error instanceof Error ? error.message : undefined,
       );
     }
+  }
+
+  private hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private signToken(

@@ -52,6 +52,18 @@ export class ChangeBlockedPasswordDto {
   newPassword: string;
 }
 
+export class ForgotPasswordDto {
+  @ApiProperty() @IsEmail() email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty() @IsString() resetToken: string;
+  @ApiProperty()
+  @IsString()
+  @Matches(PASSWORD_PATTERN, { message: PASSWORD_MESSAGE })
+  newPassword: string;
+}
+
 export class RefreshTokenDto {
   @ApiProperty()
   @IsString()

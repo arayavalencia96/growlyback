@@ -27,6 +27,12 @@ export class User {
   verificationPurpose?: VerificationPurpose | null;
   @Prop({ type: String, lowercase: true, trim: true, default: null })
   pendingEmail?: string | null;
+  @Prop({ type: String, select: false, default: null })
+  passwordResetTokenHash?: string | null;
+  @Prop({ type: Date, default: null })
+  passwordResetExpiresAt?: Date | null;
+  @Prop({ type: Date, default: null })
+  passwordResetRequestedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

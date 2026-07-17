@@ -64,18 +64,22 @@ export class EmailService {
   }
 
   async sendPasswordReset(input: ISendPasswordResetEmailInput): Promise<void> {
+    const isForgotPassword = input.purpose === 'forgot_password';
     const htmlContent = await this.templateService.render('password-reset', {
       name: input.name,
       resetLink: input.resetLink,
       expiresAtFormatted: this.formatDate(input.expiresAt),
       supportEmail: this.supportText(),
+      isForgotPassword,
     });
     await this.brevoService.send({
       recipient: { email: input.email, name: input.name },
-      subject: 'Cambia tu contraseña de Growly',
+      subject: isForgotPassword
+        ? 'Recupera tu contraseña de Growly'
+        : 'Cambia tu contraseña de Growly',
       htmlContent,
       textContent: `Cambia tu contrasena desde este enlace: ${input.resetLink}`,
-      tags: ['authentication', 'password-reset'],
+      tags: ['authentication', 'password-reset', input.purpose],
     });
   }
 

@@ -99,10 +99,13 @@ export class GoalsMovementsService {
     );
   }
 
-  async findByGoal(goalId: string): Promise<GoalMovementDocument[]> {
+  async findByGoal(
+    goalId: string,
+    userId: string,
+  ): Promise<GoalMovementDocument[]> {
     return this.databaseService.findAll(
       this.movementModel,
-      { goalId: new Types.ObjectId(goalId) },
+      { goalId: new Types.ObjectId(goalId), userId },
       { sort: { movementDate: 1, createdAt: 1 } },
     );
   }

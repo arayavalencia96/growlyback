@@ -17,9 +17,13 @@ export class GoalsService {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  async create(createGoalDto: CreateGoalDto): Promise<IGoalResponse> {
+  async create(
+    createGoalDto: CreateGoalDto,
+    userId: string,
+  ): Promise<IGoalResponse> {
     const goal = await this.databaseService.create(this.goalModel, {
       ...createGoalDto,
+      userId,
       startDate: createGoalDto.startDate
         ? new Date(createGoalDto.startDate)
         : new Date(),
@@ -31,10 +35,13 @@ export class GoalsService {
     return this.mapToResponse(goal);
   }
 
-  async findAll(query: FindGoalsQueryDto): Promise<Array<IGoalResponse>> {
+  async findAll(
+    query: FindGoalsQueryDto,
+    userId: string,
+  ): Promise<Array<IGoalResponse>> {
     const goals = await this.databaseService.findAll(
       this.goalModel,
-      this.buildFilter(query),
+      this.buildFilter(query, userId),
       {
         limit: query.limit,
         skip: query.skip,
@@ -50,13 +57,22 @@ export class GoalsService {
     return this.mapToResponse(goal);
   }
 
+  async findOneOwned(id: string, userId: string): Promise<IGoalResponse> {
+    const goal = await this.databaseService.findOneOrFail(this.goalModel, {
+      _id: id,
+      userId,
+    });
+    return this.mapToResponse(goal);
+  }
+
   async update(
     id: string,
     updateGoalDto: UpdateGoalDto,
+    userId: string,
   ): Promise<IGoalResponse> {
-    const goal = await this.databaseService.updateByIdOrFail(
+    const goal = await this.databaseService.updateOneOrFail(
       this.goalModel,
-      id,
+      { _id: id, userId },
       {
         ...updateGoalDto,
         ...(updateGoalDto.startDate
@@ -78,20 +94,19 @@ export class GoalsService {
     return this.mapToResponse(goal);
   }
 
-  async remove(id: string): Promise<IGoalResponse> {
-    const goal = await this.databaseService.deleteByIdOrFail(
-      this.goalModel,
-      id,
-    );
+  async remove(id: string, userId: string): Promise<IGoalResponse> {
+    const goal = await this.databaseService.deleteOneOrFail(this.goalModel, {
+      _id: id,
+      userId,
+    });
     return this.mapToResponse(goal);
   }
 
-  private buildFilter(query: FindGoalsQueryDto): Record<string, unknown> {
-    const filter: Record<string, unknown> = {};
-
-    if (query.userId) {
-      filter.userId = query.userId;
-    }
+  private buildFilter(
+    query: FindGoalsQueryDto,
+    userId: string,
+  ): Record<string, unknown> {
+    const filter: Record<string, unknown> = { userId };
 
     if (query.type) {
       filter.type = query.type;

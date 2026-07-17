@@ -9,7 +9,9 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { IResult } from '../common/interfaces/common.interface';
 import {
@@ -19,6 +21,9 @@ import {
 } from './dto/goals-movements.dto';
 import { GoalsMovementsService } from './goals-movements.service';
 import { IGoalMovementResponse } from './interfaces/goals-movements.interface';
+import { IAuthenticatedUser } from '../common/auth/interfaces/auth.interface';
+
+type AuthenticatedRequest = Request & { user: IAuthenticatedUser };
 
 @ApiTags('goal movements')
 @Controller('goals-movements')
@@ -29,9 +34,10 @@ export class GoalsMovementsController {
   @ApiCreatedResponse({ description: 'Goal movement created successfully' })
   async create(
     @Body() dto: CreateGoalMovementDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalMovementResponse>> {
     return {
-      result: await this.goalsMovementsService.create(dto),
+      result: await this.goalsMovementsService.create(dto, request.user.userId),
       message: 'Goal movement created successfully',
       description: 'The cash movement was assigned to the goal',
       statuscode: HttpStatus.CREATED,
@@ -43,9 +49,13 @@ export class GoalsMovementsController {
   @ApiOkResponse({ description: 'Goal movements retrieved successfully' })
   async findAll(
     @Query() query: FindGoalMovementsQueryDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalMovementResponse[]>> {
     return {
-      result: await this.goalsMovementsService.findAll(query),
+      result: await this.goalsMovementsService.findAll(
+        query,
+        request.user.userId,
+      ),
       message: 'Goal movements retrieved successfully',
       description: 'Filtered by the provided query parameters',
       statuscode: HttpStatus.OK,
@@ -57,9 +67,10 @@ export class GoalsMovementsController {
   @ApiOkResponse({ description: 'Goal movement retrieved successfully' })
   async findOne(
     @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalMovementResponse>> {
     return {
-      result: await this.goalsMovementsService.findOne(id),
+      result: await this.goalsMovementsService.findOne(id, request.user.userId),
       message: 'Goal movement retrieved successfully',
       description: 'The movement was found by id',
       statuscode: HttpStatus.OK,
@@ -72,9 +83,14 @@ export class GoalsMovementsController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateGoalMovementDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalMovementResponse>> {
     return {
-      result: await this.goalsMovementsService.update(id, dto),
+      result: await this.goalsMovementsService.update(
+        id,
+        dto,
+        request.user.userId,
+      ),
       message: 'Goal movement updated successfully',
       description: 'The movement was updated in MongoDB Atlas',
       statuscode: HttpStatus.OK,
@@ -87,9 +103,10 @@ export class GoalsMovementsController {
   @ApiOkResponse({ description: 'Goal movement deleted successfully' })
   async remove(
     @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalMovementResponse>> {
     return {
-      result: await this.goalsMovementsService.remove(id),
+      result: await this.goalsMovementsService.remove(id, request.user.userId),
       message: 'Goal movement deleted successfully',
       description: 'The movement was removed from MongoDB Atlas',
       statuscode: HttpStatus.OK,

@@ -17,14 +17,6 @@ import {
 
 export class CreateGoalDto {
   @ApiProperty({
-    description: 'Owner identifier of the goal',
-    example: 'user_123',
-  })
-  @IsString()
-  @MaxLength(120)
-  userId: string;
-
-  @ApiProperty({
     description: 'Goal name',
     example: 'Car',
   })
@@ -94,15 +86,6 @@ export class CreateGoalDto {
 export class UpdateGoalDto extends PartialType(CreateGoalDto) {}
 
 export class FindGoalsQueryDto {
-  @ApiPropertyOptional({
-    description: 'Filter by owner identifier',
-    example: 'user_123',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  userId?: string;
-
   @ApiPropertyOptional({
     description: 'Filter by type',
     enum: GOAL_TYPES,

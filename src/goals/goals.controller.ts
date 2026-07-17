@@ -9,7 +9,9 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GoalsService } from './goals.service';
 import {
@@ -19,6 +21,9 @@ import {
 } from './dto/goals.dto';
 import { IGoalResponse } from './interfaces/goals.interface';
 import { IResult } from '../common/interfaces/common.interface';
+import { IAuthenticatedUser } from '../common/auth/interfaces/auth.interface';
+
+type AuthenticatedRequest = Request & { user: IAuthenticatedUser };
 
 @ApiTags('goals')
 @Controller('goals')
@@ -29,8 +34,12 @@ export class GoalsController {
   @ApiCreatedResponse({ description: 'Goal created successfully' })
   async create(
     @Body() createGoalDto: CreateGoalDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalResponse>> {
-    const goal = await this.goalsService.create(createGoalDto);
+    const goal = await this.goalsService.create(
+      createGoalDto,
+      request.user.userId,
+    );
 
     return {
       result: goal,
@@ -45,8 +54,9 @@ export class GoalsController {
   @ApiOkResponse({ description: 'Goals list retrieved successfully' })
   async findAll(
     @Query() query: FindGoalsQueryDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<Array<IGoalResponse>>> {
-    const goals = await this.goalsService.findAll(query);
+    const goals = await this.goalsService.findAll(query, request.user.userId);
 
     return {
       result: goals,
@@ -59,8 +69,11 @@ export class GoalsController {
 
   @Get(':id')
   @ApiOkResponse({ description: 'Goal retrieved successfully' })
-  async findOne(@Param('id') id: string): Promise<IResult<IGoalResponse>> {
-    const goal = await this.goalsService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<IResult<IGoalResponse>> {
+    const goal = await this.goalsService.findOneOwned(id, request.user.userId);
 
     return {
       result: goal,
@@ -76,8 +89,13 @@ export class GoalsController {
   async update(
     @Param('id') id: string,
     @Body() updateGoalDto: UpdateGoalDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<IResult<IGoalResponse>> {
-    const goal = await this.goalsService.update(id, updateGoalDto);
+    const goal = await this.goalsService.update(
+      id,
+      updateGoalDto,
+      request.user.userId,
+    );
 
     return {
       result: goal,
@@ -91,8 +109,11 @@ export class GoalsController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ description: 'Goal deleted successfully' })
-  async remove(@Param('id') id: string): Promise<IResult<IGoalResponse>> {
-    const goal = await this.goalsService.remove(id);
+  async remove(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<IResult<IGoalResponse>> {
+    const goal = await this.goalsService.remove(id, request.user.userId);
 
     return {
       result: goal,

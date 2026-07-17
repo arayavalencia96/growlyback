@@ -44,11 +44,6 @@ export class UpdateGoalMovementDto extends PartialType(
 
 export class FindGoalMovementsQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsMongoId() goalId?: string;
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  userId?: string;
   @ApiPropertyOptional({ enum: GOAL_MOVEMENT_TYPES })
   @IsOptional()
   @IsIn(GOAL_MOVEMENT_TYPES)

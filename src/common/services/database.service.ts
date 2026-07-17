@@ -12,7 +12,6 @@ export interface IDatabaseListOptions<TDocument> {
 
 export interface IDatabaseUpdateOptions {
   upsert?: boolean;
-  new?: boolean;
 }
 
 @Injectable()
@@ -96,6 +95,19 @@ export class DatabaseService {
     return document;
   }
 
+  async findOneOrFail<TDocument>(
+    model: Model<TDocument>,
+    filter: DatabaseFilter,
+  ): Promise<HydratedDocument<TDocument>> {
+    const document = await this.findOne(model, filter);
+
+    if (!document) {
+      throw new NotFoundException('Document was not found');
+    }
+
+    return document;
+  }
+
   async updateById<TDocument>(
     model: Model<TDocument>,
     id: string,
@@ -104,7 +116,7 @@ export class DatabaseService {
   ): Promise<HydratedDocument<TDocument> | null> {
     return model
       .findByIdAndUpdate(id, payload, {
-        new: options.new ?? true,
+        returnDocument: 'after',
         upsert: options.upsert ?? false,
         runValidators: true,
       })
@@ -126,6 +138,25 @@ export class DatabaseService {
     return document;
   }
 
+  async updateOneOrFail<TDocument>(
+    model: Model<TDocument>,
+    filter: DatabaseFilter,
+    payload: UpdateQuery<TDocument>,
+  ): Promise<HydratedDocument<TDocument>> {
+    const document = await model
+      .findOneAndUpdate(filter as never, payload, {
+        returnDocument: 'after',
+        runValidators: true,
+      })
+      .exec();
+
+    if (!document) {
+      throw new NotFoundException('Document was not found');
+    }
+
+    return document;
+  }
+
   async deleteById<TDocument>(
     model: Model<TDocument>,
     id: string,
@@ -141,6 +172,19 @@ export class DatabaseService {
 
     if (!document) {
       throw new NotFoundException(`Document with id ${id} was not found`);
+    }
+
+    return document;
+  }
+
+  async deleteOneOrFail<TDocument>(
+    model: Model<TDocument>,
+    filter: DatabaseFilter,
+  ): Promise<HydratedDocument<TDocument>> {
+    const document = await model.findOneAndDelete(filter as never).exec();
+
+    if (!document) {
+      throw new NotFoundException('Document was not found');
     }
 
     return document;

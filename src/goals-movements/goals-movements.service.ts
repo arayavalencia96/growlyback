@@ -23,12 +23,15 @@ export class GoalsMovementsService {
     private readonly goalsService: GoalsService,
   ) {}
 
-  async create(dto: CreateGoalMovementDto): Promise<IGoalMovementResponse> {
-    const goal = await this.goalsService.findOne(dto.goalId);
+  async create(
+    dto: CreateGoalMovementDto,
+    userId: string,
+  ): Promise<IGoalMovementResponse> {
+    await this.goalsService.findOneOwned(dto.goalId, userId);
     const movement = await this.databaseService.create(this.movementModel, {
       ...dto,
       goalId: new Types.ObjectId(dto.goalId),
-      userId: goal.userId,
+      userId,
       movementDate: dto.movementDate ? new Date(dto.movementDate) : new Date(),
       exchangeRateArsPerUsd: dto.exchangeRateArsPerUsd ?? null,
       platform: dto.platform ?? null,
@@ -39,10 +42,11 @@ export class GoalsMovementsService {
 
   async findAll(
     query: FindGoalMovementsQueryDto,
+    userId: string,
   ): Promise<IGoalMovementResponse[]> {
     const movements = await this.databaseService.findAll(
       this.movementModel,
-      this.buildFilter(query),
+      this.buildFilter(query, userId),
       {
         limit: query.limit,
         skip: query.skip,
@@ -52,19 +56,23 @@ export class GoalsMovementsService {
     return movements.map((movement) => this.mapToResponse(movement));
   }
 
-  async findOne(id: string): Promise<IGoalMovementResponse> {
+  async findOne(id: string, userId: string): Promise<IGoalMovementResponse> {
     return this.mapToResponse(
-      await this.databaseService.findByIdOrFail(this.movementModel, id),
+      await this.databaseService.findOneOrFail(this.movementModel, {
+        _id: id,
+        userId,
+      }),
     );
   }
 
   async update(
     id: string,
     dto: UpdateGoalMovementDto,
+    userId: string,
   ): Promise<IGoalMovementResponse> {
-    const movement = await this.databaseService.updateByIdOrFail(
+    const movement = await this.databaseService.updateOneOrFail(
       this.movementModel,
-      id,
+      { _id: id, userId },
       {
         ...dto,
         ...(dto.movementDate
@@ -82,9 +90,12 @@ export class GoalsMovementsService {
     return this.mapToResponse(movement);
   }
 
-  async remove(id: string): Promise<IGoalMovementResponse> {
+  async remove(id: string, userId: string): Promise<IGoalMovementResponse> {
     return this.mapToResponse(
-      await this.databaseService.deleteByIdOrFail(this.movementModel, id),
+      await this.databaseService.deleteOneOrFail(this.movementModel, {
+        _id: id,
+        userId,
+      }),
     );
   }
 
@@ -98,10 +109,10 @@ export class GoalsMovementsService {
 
   private buildFilter(
     query: FindGoalMovementsQueryDto,
+    userId: string,
   ): Record<string, unknown> {
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { userId };
     if (query.goalId) filter.goalId = new Types.ObjectId(query.goalId);
-    if (query.userId) filter.userId = query.userId;
     if (query.type) filter.type = query.type;
     if (query.currency) filter.currency = query.currency;
     if (query.dateFrom || query.dateTo) {

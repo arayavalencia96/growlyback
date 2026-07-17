@@ -34,24 +34,26 @@ export class InvestmentOperationsService {
 
   async create(
     dto: CreateInvestmentOperationDto,
+    userId: string,
   ): Promise<IInvestmentOperationResponse> {
-    const goal = await this.goalsService.findOne(dto.goalId);
+    await this.goalsService.findOneOwned(dto.goalId, userId);
     const payload = this.buildPayload(dto);
-    await this.assertValidLedger(dto.goalId, { id: 'new', ...payload });
+    await this.assertValidLedger(dto.goalId, userId, { id: 'new', ...payload });
     const operation = await this.databaseService.create(this.operationModel, {
       ...payload,
       goalId: new Types.ObjectId(dto.goalId),
-      userId: goal.userId,
+      userId,
     });
     return this.mapToResponse(operation);
   }
 
   async findAll(
     query: FindInvestmentOperationsQueryDto,
+    userId: string,
   ): Promise<IInvestmentOperationResponse[]> {
     const operations = await this.databaseService.findAll(
       this.operationModel,
-      this.buildFilter(query),
+      this.buildFilter(query, userId),
       {
         limit: query.limit,
         skip: query.skip,
@@ -61,19 +63,26 @@ export class InvestmentOperationsService {
     return operations.map((operation) => this.mapToResponse(operation));
   }
 
-  async findOne(id: string): Promise<IInvestmentOperationResponse> {
+  async findOne(
+    id: string,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
     return this.mapToResponse(
-      await this.databaseService.findByIdOrFail(this.operationModel, id),
+      await this.databaseService.findOneOrFail(this.operationModel, {
+        _id: id,
+        userId,
+      }),
     );
   }
 
   async update(
     id: string,
     dto: UpdateInvestmentOperationDto,
+    userId: string,
   ): Promise<IInvestmentOperationResponse> {
-    const current = await this.databaseService.findByIdOrFail(
+    const current = await this.databaseService.findOneOrFail(
       this.operationModel,
-      id,
+      { _id: id, userId },
     );
     const payload = this.buildPayload({
       goalId: current.goalId.toString(),
@@ -93,33 +102,48 @@ export class InvestmentOperationsService {
     });
     await this.assertValidLedger(
       current.goalId.toString(),
+      userId,
       { id, ...payload },
       id,
     );
     return this.mapToResponse(
-      await this.databaseService.updateByIdOrFail(
+      await this.databaseService.updateOneOrFail(
         this.operationModel,
-        id,
+        { _id: id, userId },
         payload,
       ),
     );
   }
 
-  async remove(id: string): Promise<IInvestmentOperationResponse> {
-    const current = await this.databaseService.findByIdOrFail(
+  async remove(
+    id: string,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
+    const current = await this.databaseService.findOneOrFail(
       this.operationModel,
+      { _id: id, userId },
+    );
+    await this.assertValidLedger(
+      current.goalId.toString(),
+      userId,
+      undefined,
       id,
     );
-    await this.assertValidLedger(current.goalId.toString(), undefined, id);
     return this.mapToResponse(
-      await this.databaseService.deleteByIdOrFail(this.operationModel, id),
+      await this.databaseService.deleteOneOrFail(this.operationModel, {
+        _id: id,
+        userId,
+      }),
     );
   }
 
-  async findByGoal(goalId: string): Promise<InvestmentOperationDocument[]> {
+  async findByGoal(
+    goalId: string,
+    userId: string,
+  ): Promise<InvestmentOperationDocument[]> {
     return this.databaseService.findAll(
       this.operationModel,
-      { goalId: new Types.ObjectId(goalId) },
+      { goalId: new Types.ObjectId(goalId), userId },
       { sort: { operationDate: 1, createdAt: 1 } },
     );
   }
@@ -154,10 +178,11 @@ export class InvestmentOperationsService {
 
   private async assertValidLedger(
     goalId: string,
+    userId: string,
     candidate?: ILedgerOperation,
     excludedId?: string,
   ): Promise<void> {
-    const documents = await this.findByGoal(goalId);
+    const documents = await this.findByGoal(goalId, userId);
     const operations: ILedgerOperation[] = documents
       .filter((item) => item._id.toString() !== excludedId)
       .map((item) => ({
@@ -190,10 +215,10 @@ export class InvestmentOperationsService {
 
   private buildFilter(
     query: FindInvestmentOperationsQueryDto,
+    userId: string,
   ): Record<string, unknown> {
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { userId };
     if (query.goalId) filter.goalId = new Types.ObjectId(query.goalId);
-    if (query.userId) filter.userId = query.userId;
     if (query.platform) filter.platform = query.platform.trim().toUpperCase();
     if (query.ticker) filter.ticker = query.ticker.trim().toUpperCase();
     if (query.type) filter.type = query.type;

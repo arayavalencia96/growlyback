@@ -23,11 +23,14 @@ export class SummariesService {
     private readonly investmentOperationsService: InvestmentOperationsService,
   ) {}
 
-  async getGoalSummary(goalId: string): Promise<IGoalSummaryResponse> {
+  async getGoalSummary(
+    goalId: string,
+    userId: string,
+  ): Promise<IGoalSummaryResponse> {
     const [goal, movements, operations] = await Promise.all([
-      this.goalsService.findOne(goalId),
-      this.goalsMovementsService.findByGoal(goalId),
-      this.investmentOperationsService.findByGoal(goalId),
+      this.goalsService.findOneOwned(goalId, userId),
+      this.goalsMovementsService.findByGoal(goalId, userId),
+      this.investmentOperationsService.findByGoal(goalId, userId),
     ]);
     const state = { hasUnconvertedAmounts: false };
     const contributions = this.sumMovements(movements, 'contribution', state);

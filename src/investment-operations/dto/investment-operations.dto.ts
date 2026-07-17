@@ -57,11 +57,6 @@ export class FindInvestmentOperationsQueryDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
-  userId?: string;
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
   platform?: string;
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,19 +1,67 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PartialType } from '@nestjs/mapped-types';
+import { OmitType, PartialType } from '@nestjs/mapped-types';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsDateString,
   IsInt,
   IsIn,
+  IsNumber,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import {
   GOAL_CURRENCIES,
   GOAL_STATUSES,
+  GOAL_TRACKING_MODES,
   GOAL_TYPES,
 } from '../interfaces/goals.interface';
+
+export class OpeningCashBalanceDto {
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) platform: string;
+  @ApiProperty({ enum: GOAL_CURRENCIES })
+  @IsIn(GOAL_CURRENCIES)
+  currency: (typeof GOAL_CURRENCIES)[number];
+  @ApiProperty()
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0.00000001)
+  amount: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0.00000001)
+  exchangeRateArsPerUsd?: number | null;
+}
+
+export class OpeningPositionDto {
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) platform: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(30) ticker: string;
+  @ApiProperty()
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0.00000001)
+  quantity: number;
+  @ApiProperty()
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0.00000001)
+  unitPrice: number;
+  @ApiProperty()
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0.00000001)
+  totalAmount: number;
+  @ApiProperty({ enum: GOAL_CURRENCIES })
+  @IsIn(GOAL_CURRENCIES)
+  currency: (typeof GOAL_CURRENCIES)[number];
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0.00000001)
+  exchangeRateArsPerUsd?: number | null;
+}
 
 export class CreateGoalDto {
   @ApiProperty({
@@ -21,6 +69,7 @@ export class CreateGoalDto {
     example: 'Car',
   })
   @IsString()
+  @IsNotEmpty()
   @MaxLength(120)
   name: string;
 
@@ -81,9 +130,36 @@ export class CreateGoalDto {
   @IsString()
   @MaxLength(500)
   notes?: string | null;
+
+  @ApiProperty({ enum: GOAL_TRACKING_MODES })
+  @IsIn(GOAL_TRACKING_MODES)
+  trackingMode: (typeof GOAL_TRACKING_MODES)[number];
+
+  @ApiPropertyOptional({ type: [OpeningCashBalanceDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => OpeningCashBalanceDto)
+  openingCashBalances?: OpeningCashBalanceDto[];
+
+  @ApiPropertyOptional({ type: [OpeningPositionDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => OpeningPositionDto)
+  openingPositions?: OpeningPositionDto[];
 }
 
-export class UpdateGoalDto extends PartialType(CreateGoalDto) {}
+export class UpdateGoalDto extends PartialType(
+  OmitType(CreateGoalDto, [
+    'trackingMode',
+    'openingCashBalances',
+    'openingPositions',
+    'startDate',
+  ] as const),
+) {}
 
 export class FindGoalsQueryDto {
   @ApiPropertyOptional({

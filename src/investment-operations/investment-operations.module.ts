@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CommonModule } from '../common/common.module';
 import { GoalsModule } from '../goals/goals.module';
+import { PortfolioLedgerModule } from '../portfolio-ledger.module';
 import {
   InvestmentOperation,
   InvestmentOperationSchema,
@@ -13,6 +14,7 @@ import { InvestmentOperationsController } from './investment-operations.controll
   imports: [
     CommonModule,
     GoalsModule,
+    PortfolioLedgerModule,
     MongooseModule.forFeature([
       { name: InvestmentOperation.name, schema: InvestmentOperationSchema },
     ]),

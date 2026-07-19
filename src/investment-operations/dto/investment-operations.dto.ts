@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsMongoId,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -16,8 +17,16 @@ import { INVESTMENT_OPERATION_TYPES } from '../interfaces/investment-operations.
 
 export class CreateInvestmentOperationDto {
   @ApiProperty() @IsMongoId() goalId: string;
-  @ApiProperty({ example: 'IOL' }) @IsString() @MaxLength(120) platform: string;
-  @ApiProperty({ example: 'AAPL' }) @IsString() @MaxLength(30) ticker: string;
+  @ApiProperty({ example: 'IOL' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  platform: string;
+  @ApiProperty({ example: 'AAPL' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  ticker: string;
   @ApiProperty({ enum: INVESTMENT_OPERATION_TYPES })
   @IsIn(INVESTMENT_OPERATION_TYPES)
   type: (typeof INVESTMENT_OPERATION_TYPES)[number];

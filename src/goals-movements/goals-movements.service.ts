@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { DatabaseService } from '../common/services/database.service';
 import { GoalsService } from '../goals/goals.service';
+import { PortfolioLedgerService } from '../portfolio-ledger.service';
 import {
   CreateGoalMovementDto,
   FindGoalMovementsQueryDto,
@@ -21,6 +22,7 @@ export class GoalsMovementsService {
     private readonly movementModel: Model<GoalMovementDocument>,
     private readonly databaseService: DatabaseService,
     private readonly goalsService: GoalsService,
+    private readonly portfolioLedgerService: PortfolioLedgerService,
   ) {}
 
   async create(
@@ -28,14 +30,20 @@ export class GoalsMovementsService {
     userId: string,
   ): Promise<IGoalMovementResponse> {
     await this.goalsService.findOneOwned(dto.goalId, userId);
+    const payload = this.buildPayload(dto);
+    await this.portfolioLedgerService.validate(dto.goalId, userId, {
+      source: 'movement',
+      id: 'new',
+      platform: payload.platform,
+      type: payload.type,
+      amount: payload.amount,
+      currency: payload.currency,
+      date: payload.movementDate,
+    });
     const movement = await this.databaseService.create(this.movementModel, {
-      ...dto,
+      ...payload,
       goalId: new Types.ObjectId(dto.goalId),
       userId,
-      movementDate: dto.movementDate ? new Date(dto.movementDate) : new Date(),
-      exchangeRateArsPerUsd: dto.exchangeRateArsPerUsd ?? null,
-      platform: dto.platform ?? null,
-      notes: dto.notes ?? null,
     });
     return this.mapToResponse(movement);
   }
@@ -70,33 +78,74 @@ export class GoalsMovementsService {
     dto: UpdateGoalMovementDto,
     userId: string,
   ): Promise<IGoalMovementResponse> {
+    const current = await this.databaseService.findOneOrFail(
+      this.movementModel,
+      { _id: id, userId },
+    );
+    const payload = this.buildPayload({
+      goalId: current.goalId.toString(),
+      type: dto.type ?? current.type,
+      amount: dto.amount ?? current.amount,
+      currency: dto.currency ?? current.currency,
+      movementDate: dto.movementDate ?? current.movementDate.toISOString(),
+      exchangeRateArsPerUsd:
+        dto.exchangeRateArsPerUsd === undefined
+          ? current.exchangeRateArsPerUsd
+          : dto.exchangeRateArsPerUsd,
+      platform: dto.platform ?? current.platform ?? 'GENERAL',
+      notes: dto.notes === undefined ? current.notes : dto.notes,
+    });
+    await this.portfolioLedgerService.validate(
+      current.goalId.toString(),
+      userId,
+      {
+        source: 'movement',
+        id,
+        platform: payload.platform,
+        type: payload.type,
+        amount: payload.amount,
+        currency: payload.currency,
+        date: payload.movementDate,
+      },
+      { source: 'movement', id },
+    );
     const movement = await this.databaseService.updateOneOrFail(
       this.movementModel,
       { _id: id, userId },
-      {
-        ...dto,
-        ...(dto.movementDate
-          ? { movementDate: new Date(dto.movementDate) }
-          : {}),
-        ...(dto.exchangeRateArsPerUsd !== undefined
-          ? { exchangeRateArsPerUsd: dto.exchangeRateArsPerUsd ?? null }
-          : {}),
-        ...(dto.platform !== undefined
-          ? { platform: dto.platform ?? null }
-          : {}),
-        ...(dto.notes !== undefined ? { notes: dto.notes ?? null } : {}),
-      },
+      payload,
     );
     return this.mapToResponse(movement);
   }
 
   async remove(id: string, userId: string): Promise<IGoalMovementResponse> {
+    const current = await this.databaseService.findOneOrFail(
+      this.movementModel,
+      { _id: id, userId },
+    );
+    await this.portfolioLedgerService.validate(
+      current.goalId.toString(),
+      userId,
+      undefined,
+      { source: 'movement', id },
+    );
     return this.mapToResponse(
       await this.databaseService.deleteOneOrFail(this.movementModel, {
         _id: id,
         userId,
       }),
     );
+  }
+
+  private buildPayload(dto: CreateGoalMovementDto) {
+    return {
+      type: dto.type,
+      amount: dto.amount,
+      currency: dto.currency,
+      movementDate: dto.movementDate ? new Date(dto.movementDate) : new Date(),
+      exchangeRateArsPerUsd: dto.exchangeRateArsPerUsd ?? null,
+      platform: dto.platform?.trim().toUpperCase() || 'GENERAL',
+      notes: dto.notes ?? null,
+    };
   }
 
   async findByGoal(

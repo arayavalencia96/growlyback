@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { DatabaseService } from '../common/services/database.service';
 import { GoalsService } from '../goals/goals.service';
+import { PortfolioLedgerService } from '../portfolio-ledger.service';
 import {
   CreateInvestmentOperationDto,
   FindInvestmentOperationsQueryDto,
@@ -14,15 +15,6 @@ import {
 } from './entity/investment-operations.entity';
 import { IInvestmentOperationResponse } from './interfaces/investment-operations.interface';
 
-interface ILedgerOperation {
-  id: string;
-  platform: string;
-  ticker: string;
-  type: 'buy' | 'sell';
-  quantity: number;
-  operationDate: Date;
-}
-
 @Injectable()
 export class InvestmentOperationsService {
   constructor(
@@ -30,6 +22,7 @@ export class InvestmentOperationsService {
     private readonly operationModel: Model<InvestmentOperationDocument>,
     private readonly databaseService: DatabaseService,
     private readonly goalsService: GoalsService,
+    private readonly portfolioLedgerService: PortfolioLedgerService,
   ) {}
 
   async create(
@@ -38,7 +31,17 @@ export class InvestmentOperationsService {
   ): Promise<IInvestmentOperationResponse> {
     await this.goalsService.findOneOwned(dto.goalId, userId);
     const payload = this.buildPayload(dto);
-    await this.assertValidLedger(dto.goalId, userId, { id: 'new', ...payload });
+    await this.portfolioLedgerService.validate(dto.goalId, userId, {
+      source: 'operation',
+      id: 'new',
+      platform: payload.platform,
+      ticker: payload.ticker,
+      type: payload.type,
+      quantity: payload.quantity,
+      totalAmount: payload.totalAmount,
+      currency: payload.currency,
+      date: payload.operationDate,
+    });
     const operation = await this.databaseService.create(this.operationModel, {
       ...payload,
       goalId: new Types.ObjectId(dto.goalId),
@@ -100,11 +103,21 @@ export class InvestmentOperationsService {
           : dto.exchangeRateArsPerUsd,
       notes: dto.notes === undefined ? current.notes : dto.notes,
     });
-    await this.assertValidLedger(
+    await this.portfolioLedgerService.validate(
       current.goalId.toString(),
       userId,
-      { id, ...payload },
-      id,
+      {
+        source: 'operation',
+        id,
+        platform: payload.platform,
+        ticker: payload.ticker,
+        type: payload.type,
+        quantity: payload.quantity,
+        totalAmount: payload.totalAmount,
+        currency: payload.currency,
+        date: payload.operationDate,
+      },
+      { source: 'operation', id },
     );
     return this.mapToResponse(
       await this.databaseService.updateOneOrFail(
@@ -123,11 +136,11 @@ export class InvestmentOperationsService {
       this.operationModel,
       { _id: id, userId },
     );
-    await this.assertValidLedger(
+    await this.portfolioLedgerService.validate(
       current.goalId.toString(),
       userId,
       undefined,
-      id,
+      { source: 'operation', id },
     );
     return this.mapToResponse(
       await this.databaseService.deleteOneOrFail(this.operationModel, {
@@ -178,43 +191,6 @@ export class InvestmentOperationsService {
       exchangeRateArsPerUsd: dto.exchangeRateArsPerUsd ?? null,
       notes: dto.notes ?? null,
     };
-  }
-
-  private async assertValidLedger(
-    goalId: string,
-    userId: string,
-    candidate?: ILedgerOperation,
-    excludedId?: string,
-  ): Promise<void> {
-    const documents = await this.findByGoal(goalId, userId);
-    const operations: ILedgerOperation[] = documents
-      .filter((item) => item._id.toString() !== excludedId)
-      .map((item) => ({
-        id: item._id.toString(),
-        platform: item.platform,
-        ticker: item.ticker,
-        type: item.type,
-        quantity: item.quantity,
-        operationDate: item.operationDate,
-      }));
-    if (candidate) operations.push(candidate);
-    operations.sort(
-      (a, b) =>
-        a.operationDate.getTime() - b.operationDate.getTime() ||
-        a.id.localeCompare(b.id),
-    );
-    const positions = new Map<string, number>();
-    for (const operation of operations) {
-      const key = `${operation.platform}:${operation.ticker}`;
-      const quantity =
-        (positions.get(key) ?? 0) +
-        (operation.type === 'buy' ? operation.quantity : -operation.quantity);
-      if (quantity < -0.00000001)
-        throw new BadRequestException(
-          `Insufficient position for ${operation.ticker} on ${operation.platform}`,
-        );
-      positions.set(key, this.round(quantity));
-    }
   }
 
   private buildFilter(

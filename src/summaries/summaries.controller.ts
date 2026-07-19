@@ -5,7 +5,10 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { IResult } from '../common/interfaces/common.interface';
 import { GoalSummaryParamsDto } from './dto/summaries.dto';
 import { SummariesService } from './summaries.service';
-import { IGoalSummaryResponse } from './interfaces/summaries.interface';
+import {
+  IGoalSummaryResponse,
+  IPortfolioSummaryResponse,
+} from './interfaces/summaries.interface';
 
 type AuthenticatedRequest = Request & { user: IAuthenticatedUser };
 
@@ -13,6 +16,22 @@ type AuthenticatedRequest = Request & { user: IAuthenticatedUser };
 @Controller('summaries')
 export class SummariesController {
   constructor(private readonly summariesService: SummariesService) {}
+
+  @Get('portfolio')
+  @ApiOkResponse({ description: 'Portfolio summary retrieved successfully' })
+  async getPortfolioSummary(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<IResult<IPortfolioSummaryResponse>> {
+    return {
+      result: await this.summariesService.getPortfolioSummary(
+        request.user.userId,
+      ),
+      message: 'Portfolio summary retrieved successfully',
+      description: 'Book value grouped by platform across all user goals',
+      statuscode: HttpStatus.OK,
+      ok: true,
+    };
+  }
 
   @Get('goals/:goalId')
   @ApiOkResponse({ description: 'Goal summary retrieved successfully' })

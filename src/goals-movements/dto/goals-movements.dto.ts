@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsMongoId,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -32,8 +33,7 @@ export class CreateGoalMovementDto {
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)
   exchangeRateArsPerUsd?: number | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) platform?:
-    string | null;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) platform: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?:
     string | null;
 }

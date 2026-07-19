@@ -7,6 +7,30 @@ export type GoalStatus = (typeof GOAL_STATUSES)[number];
 export const GOAL_CURRENCIES = ['ARS', 'USD'] as const;
 export type GoalCurrency = (typeof GOAL_CURRENCIES)[number];
 
+export const GOAL_TRACKING_MODES = [
+  'from_scratch',
+  'existing_portfolio',
+] as const;
+export type GoalTrackingMode = (typeof GOAL_TRACKING_MODES)[number];
+export type StoredGoalTrackingMode = GoalTrackingMode | 'legacy';
+
+export interface IOpeningCashBalance {
+  platform: string;
+  currency: GoalCurrency;
+  amount: number;
+  exchangeRateArsPerUsd?: number | null;
+}
+
+export interface IOpeningPosition {
+  platform: string;
+  ticker: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  currency: GoalCurrency;
+  exchangeRateArsPerUsd?: number | null;
+}
+
 export interface IGoalBase {
   userId: string;
   name: string;
@@ -16,6 +40,9 @@ export interface IGoalBase {
   startDate: Date;
   endDate?: Date | null;
   status: GoalStatus;
+  trackingMode: StoredGoalTrackingMode;
+  openingCashBalances: IOpeningCashBalance[];
+  openingPositions: IOpeningPosition[];
   notes?: string | null;
 }
 
@@ -28,6 +55,9 @@ export interface ICreateGoalInput {
   startDate?: Date;
   endDate?: Date | null;
   status?: GoalStatus;
+  trackingMode: GoalTrackingMode;
+  openingCashBalances?: IOpeningCashBalance[];
+  openingPositions?: IOpeningPosition[];
   notes?: string | null;
 }
 
@@ -36,7 +66,6 @@ export interface IUpdateGoalInput {
   type?: GoalType;
   targetAmount?: number;
   currency?: GoalCurrency;
-  startDate?: Date;
   endDate?: Date | null;
   status?: GoalStatus;
   notes?: string | null;

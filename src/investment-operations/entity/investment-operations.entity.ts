@@ -25,6 +25,8 @@ export class InvestmentOperation {
   operationDate: Date;
   @Prop({ required: true, min: 0.00000001 }) quantity: number;
   @Prop({ required: true, min: 0.00000001 }) unitPrice: number;
+  @Prop({ type: Number, min: 0.00000001, default: null })
+  totalAmount?: number | null;
   @Prop({ required: true, min: 0, default: 0 }) fees: number;
   @Prop({ required: true, min: 0 }) grossAmount: number;
   @Prop({ required: true, min: 0 }) netAmount: number;

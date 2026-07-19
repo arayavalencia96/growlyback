@@ -107,7 +107,7 @@ export class SummariesService {
     for (const operation of operations) {
       const key = `${operation.platform}:${operation.ticker}`;
       const amount = this.convert(
-        operation.netAmount,
+        operation.totalAmount ?? operation.netAmount,
         operation.currency,
         operation.exchangeRateArsPerUsd,
         state,

@@ -92,7 +92,7 @@ export class InvestmentOperationsService {
       operationDate: dto.operationDate ?? current.operationDate.toISOString(),
       quantity: dto.quantity ?? current.quantity,
       unitPrice: dto.unitPrice ?? current.unitPrice,
-      fees: dto.fees ?? current.fees,
+      totalAmount: dto.totalAmount ?? current.totalAmount ?? current.netAmount,
       currency: dto.currency ?? current.currency,
       exchangeRateArsPerUsd:
         dto.exchangeRateArsPerUsd === undefined
@@ -151,13 +151,16 @@ export class InvestmentOperationsService {
   private buildPayload(dto: CreateInvestmentOperationDto) {
     const quantity = dto.quantity;
     const unitPrice = dto.unitPrice;
-    const fees = dto.fees ?? 0;
     const grossAmount = this.round(quantity * unitPrice);
-    const netAmount = this.round(
-      dto.type === 'buy' ? grossAmount + fees : grossAmount - fees,
+    const totalAmount = this.round(dto.totalAmount);
+    const fees = this.round(
+      Math.max(
+        0,
+        dto.type === 'buy'
+          ? totalAmount - grossAmount
+          : grossAmount - totalAmount,
+      ),
     );
-    if (netAmount < 0)
-      throw new BadRequestException('Fees cannot exceed the gross sale amount');
     return {
       platform: dto.platform.trim().toUpperCase(),
       ticker: dto.ticker.trim().toUpperCase(),
@@ -167,9 +170,10 @@ export class InvestmentOperationsService {
         : new Date(),
       quantity,
       unitPrice,
+      totalAmount,
       fees,
       grossAmount,
-      netAmount,
+      netAmount: totalAmount,
       currency: dto.currency,
       exchangeRateArsPerUsd: dto.exchangeRateArsPerUsd ?? null,
       notes: dto.notes ?? null,
@@ -244,9 +248,7 @@ export class InvestmentOperationsService {
       operationDate: operation.operationDate.toISOString(),
       quantity: operation.quantity,
       unitPrice: operation.unitPrice,
-      fees: operation.fees,
-      grossAmount: operation.grossAmount,
-      netAmount: operation.netAmount,
+      totalAmount: operation.totalAmount ?? operation.netAmount,
       currency: operation.currency,
       exchangeRateArsPerUsd: operation.exchangeRateArsPerUsd ?? null,
       notes: operation.notes ?? null,

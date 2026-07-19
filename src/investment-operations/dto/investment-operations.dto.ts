@@ -30,11 +30,10 @@ export class CreateInvestmentOperationDto {
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)
   unitPrice: number;
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional()
+  @ApiProperty({ example: 258.75 })
   @IsNumber({ maxDecimalPlaces: 8 })
-  @Min(0)
-  fees?: number;
+  @Min(0.00000001)
+  totalAmount: number;
   @ApiProperty({ enum: GOAL_CURRENCIES })
   @IsIn(GOAL_CURRENCIES)
   currency: (typeof GOAL_CURRENCIES)[number];

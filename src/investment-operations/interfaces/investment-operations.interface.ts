@@ -13,9 +13,7 @@ export interface IInvestmentOperationBase {
   operationDate: Date;
   quantity: number;
   unitPrice: number;
-  fees: number;
-  grossAmount: number;
-  netAmount: number;
+  totalAmount: number;
   currency: GoalCurrency;
   exchangeRateArsPerUsd?: number | null;
   notes?: string | null;

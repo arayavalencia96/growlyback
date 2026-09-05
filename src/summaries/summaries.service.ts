@@ -11,6 +11,7 @@ import {
   IOpenPositionSummary,
   IPlatformBookValue,
   IPortfolioSummaryResponse,
+  IRealizedProfitDetail,
 } from './interfaces/summaries.interface';
 
 interface ILot {
@@ -133,6 +134,7 @@ export class SummariesService {
       totalBuyCost: investment.totalBuyCost,
       totalSellProceeds: investment.totalSellProceeds,
       realizedProfit: investment.realizedProfit,
+      realizedProfitDetails: investment.realizedProfitDetails,
       cashBalance,
       cashBalances,
       platformBookValues,
@@ -310,6 +312,7 @@ export class SummariesService {
     let totalBuyCost = this.zero();
     let totalSellProceeds = this.zero();
     let realizedProfit = this.zero();
+    const realizedProfitDetails: IRealizedProfitDetail[] = [];
 
     for (const position of openingPositions) {
       const amount = this.convert(
@@ -343,9 +346,28 @@ export class SummariesService {
           ars: this.round(amount.ars / operation.quantity),
           usd: this.round(amount.usd / operation.quantity),
         };
+        const currentLot = lots.get(key)?.[0];
+        if (!currentLot) {
+          lots.set(key, [{ quantity: operation.quantity, unitCost }]);
+          continue;
+        }
+        const nextQuantity = this.round(
+          currentLot.quantity + operation.quantity,
+        );
         lots.set(key, [
-          ...(lots.get(key) ?? []),
-          { quantity: operation.quantity, unitCost },
+          {
+            quantity: nextQuantity,
+            unitCost: {
+              ars: this.round(
+                (currentLot.unitCost.ars * currentLot.quantity + amount.ars) /
+                  nextQuantity,
+              ),
+              usd: this.round(
+                (currentLot.unitCost.usd * currentLot.quantity + amount.usd) /
+                  nextQuantity,
+              ),
+            },
+          },
         ]);
         continue;
       }
@@ -370,6 +392,16 @@ export class SummariesService {
         realizedProfit,
         this.subtract(amount, soldCost),
       );
+      realizedProfitDetails.push({
+        operationId: operation._id.toString(),
+        platform: operation.platform,
+        ticker: operation.ticker,
+        quantity: operation.quantity,
+        operationDate: operation.operationDate,
+        costBasis: soldCost,
+        proceeds: amount,
+        profitOrLoss: this.subtract(amount, soldCost),
+      });
       lots.set(key, positionLots);
     }
 
@@ -406,6 +438,7 @@ export class SummariesService {
       totalBuyCost,
       totalSellProceeds,
       realizedProfit,
+      realizedProfitDetails,
       openPositionValueAtCost,
       openPositions,
     };

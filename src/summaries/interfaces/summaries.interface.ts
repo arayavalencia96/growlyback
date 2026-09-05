@@ -13,6 +13,17 @@ export interface IOpenPositionSummary {
   invested: IMoneyTotals;
 }
 
+export interface IRealizedProfitDetail {
+  operationId: string;
+  platform: string;
+  ticker: string;
+  quantity: number;
+  operationDate: Date;
+  costBasis: IMoneyTotals;
+  proceeds: IMoneyTotals;
+  profitOrLoss: IMoneyTotals;
+}
+
 export interface ICashBalanceSummary {
   platform: string;
   currency: GoalCurrency;
@@ -36,6 +47,7 @@ export interface IGoalSummaryResponse {
   totalBuyCost: IMoneyTotals;
   totalSellProceeds: IMoneyTotals;
   realizedProfit: IMoneyTotals;
+  realizedProfitDetails: IRealizedProfitDetail[];
   cashBalance: IMoneyTotals;
   cashBalances: ICashBalanceSummary[];
   platformBookValues: IPlatformBookValue[];

@@ -9,9 +9,17 @@ import { EmailService } from './services/email.service';
 import { EmailTemplateService } from './services/email-template.service';
 import { HttpLoggerService } from './services/http-logger.service';
 
+import { MongooseModule } from '@nestjs/mongoose';
+import { Goal, GoalSchema } from '../goals/entity/goals.entity';
+import { LedgerCoordinator } from './services/ledger-coordinator.service';
+
 @Global()
 @Module({
+  imports: [
+    MongooseModule.forFeature([{ name: Goal.name, schema: GoalSchema }]),
+  ],
   providers: [
+    LedgerCoordinator,
     DatabaseService,
     BrevoService,
     EmailTemplateService,
@@ -26,7 +34,7 @@ import { HttpLoggerService } from './services/http-logger.service';
       useClass: HttpExceptionLoggingFilter,
     },
   ],
-  exports: [DatabaseService, EmailService],
+  exports: [DatabaseService, EmailService, LedgerCoordinator],
 })
 export class CommonModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

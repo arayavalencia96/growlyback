@@ -41,6 +41,8 @@ const OpeningPositionSchema = SchemaFactory.createForClass(OpeningPosition);
 
 @Schema({ timestamps: true, collection: 'goals', versionKey: false })
 export class Goal {
+  @Prop({ default: 0 }) ledgerVersion: number;
+  @Prop({ type: String }) cashyAdjustmentLock?: string;
   @Prop({ required: true, trim: true, index: true })
   userId: string;
 
@@ -64,6 +66,7 @@ export class Goal {
 
   @Prop({ required: true, enum: GOAL_STATUSES, default: 'active', index: true })
   status: GoalStatus;
+  @Prop({ default: false }) hasCashyContributionHistory: boolean;
 
   @Prop({
     required: true,

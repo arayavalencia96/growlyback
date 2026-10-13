@@ -12,6 +12,8 @@ import {
 } from './investment-operations/entity/investment-operations.entity';
 import type { PortfolioLedgerCandidate } from './portfolio-ledger.interface';
 
+import { ledgerSession } from './common/services/ledger-context';
+
 @Injectable()
 export class PortfolioLedgerService {
   constructor(
@@ -27,12 +29,21 @@ export class PortfolioLedgerService {
     userId: string,
     candidate?: PortfolioLedgerCandidate,
     excluded?: { source: PortfolioLedgerCandidate['source']; id: string },
+    requireCashBalance = false,
   ): Promise<void> {
-    const [goal, movements, operations] = await Promise.all([
-      this.goalsService.findOneOwned(goalId, userId),
-      this.movementModel.find({ goalId: new Types.ObjectId(goalId), userId }),
-      this.operationModel.find({ goalId: new Types.ObjectId(goalId), userId }),
-    ]);
+    const goal = await this.goalsService.findOneOwned(goalId, userId);
+    const movements = await this.movementModel
+      .find({
+        goalId: new Types.ObjectId(goalId),
+        userId,
+        voided: { $ne: true },
+      })
+      .session(ledgerSession())
+      .exec();
+    const operations = await this.operationModel
+      .find({ goalId: new Types.ObjectId(goalId), userId })
+      .session(ledgerSession())
+      .exec();
     const events: PortfolioLedgerCandidate[] = [
       ...movements
         .filter(
@@ -110,7 +121,7 @@ export class PortfolioLedgerService {
           );
         positions.set(key, this.round(next));
       }
-      if (goal.trackingMode === 'legacy') continue;
+      if (goal.trackingMode === 'legacy' && !requireCashBalance) continue;
       const key = this.cashKey(event.platform, event.currency);
       const delta =
         event.source === 'movement'

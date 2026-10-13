@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { DatabaseService } from '../common/services/database.service';
@@ -10,9 +14,12 @@ import {
 import { Goal, GoalDocument } from './entity/goals.entity';
 import { IGoalResponse } from './interfaces/goals.interface';
 
+import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+
 @Injectable()
 export class GoalsService {
   constructor(
+    private readonly coordinator: LedgerCoordinator,
     @InjectModel(Goal.name) private readonly goalModel: Model<GoalDocument>,
     private readonly databaseService: DatabaseService,
   ) {}
@@ -83,6 +90,16 @@ export class GoalsService {
 
   async update(
     id: string,
+    dto: UpdateGoalDto,
+    userId: string,
+  ): Promise<IGoalResponse> {
+    return this.coordinator.run(id, userId, () =>
+      this.updateUnlocked(id, dto, userId),
+    );
+  }
+
+  private async updateUnlocked(
+    id: string,
     updateGoalDto: UpdateGoalDto,
     userId: string,
   ): Promise<IGoalResponse> {
@@ -108,11 +125,40 @@ export class GoalsService {
   }
 
   async remove(id: string, userId: string): Promise<IGoalResponse> {
-    const goal = await this.databaseService.deleteOneOrFail(this.goalModel, {
+    return this.coordinator.run(id, userId, () =>
+      this.removeUnlocked(id, userId),
+    );
+  }
+
+  private async removeUnlocked(
+    id: string,
+    userId: string,
+  ): Promise<IGoalResponse> {
+    const current = await this.databaseService.findOneOrFail(this.goalModel, {
       _id: id,
       userId,
     });
+    if (current.hasCashyContributionHistory)
+      throw new ConflictException(
+        'Este objetivo conserva historial de aportes Cashy. Podés pausarlo, pero no eliminarlo.',
+      );
+    const goal = await this.databaseService.deleteOneOrFail(this.goalModel, {
+      _id: id,
+      userId,
+      hasCashyContributionHistory: { $ne: true },
+    });
     return this.mapToResponse(goal);
+  }
+
+  async protectCashyContributionHistory(
+    id: string,
+    userId: string,
+  ): Promise<void> {
+    await this.databaseService.updateOneOrFail(
+      this.goalModel,
+      { _id: id, userId },
+      { $set: { hasCashyContributionHistory: true } },
+    );
   }
 
   private buildFilter(

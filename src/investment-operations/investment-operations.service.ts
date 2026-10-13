@@ -15,9 +15,12 @@ import {
 } from './entity/investment-operations.entity';
 import { IInvestmentOperationResponse } from './interfaces/investment-operations.interface';
 
+import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+
 @Injectable()
 export class InvestmentOperationsService {
   constructor(
+    private readonly coordinator: LedgerCoordinator,
     @InjectModel(InvestmentOperation.name)
     private readonly operationModel: Model<InvestmentOperationDocument>,
     private readonly databaseService: DatabaseService,
@@ -26,6 +29,15 @@ export class InvestmentOperationsService {
   ) {}
 
   async create(
+    dto: CreateInvestmentOperationDto,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
+    return this.coordinator.run(dto.goalId, userId, () =>
+      this.createUnlocked(dto, userId),
+    );
+  }
+
+  private async createUnlocked(
     dto: CreateInvestmentOperationDto,
     userId: string,
   ): Promise<IInvestmentOperationResponse> {
@@ -83,6 +95,20 @@ export class InvestmentOperationsService {
     dto: UpdateInvestmentOperationDto,
     userId: string,
   ): Promise<IInvestmentOperationResponse> {
+    const row = await this.databaseService.findOneOrFail(this.operationModel, {
+      _id: id,
+      userId,
+    });
+    return this.coordinator.run(row.goalId.toString(), userId, () =>
+      this.updateUnlocked(id, dto, userId),
+    );
+  }
+
+  private async updateUnlocked(
+    id: string,
+    dto: UpdateInvestmentOperationDto,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
     const current = await this.databaseService.findOneOrFail(
       this.operationModel,
       { _id: id, userId },
@@ -129,6 +155,19 @@ export class InvestmentOperationsService {
   }
 
   async remove(
+    id: string,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
+    const row = await this.databaseService.findOneOrFail(this.operationModel, {
+      _id: id,
+      userId,
+    });
+    return this.coordinator.run(row.goalId.toString(), userId, () =>
+      this.removeUnlocked(id, userId),
+    );
+  }
+
+  private async removeUnlocked(
     id: string,
     userId: string,
   ): Promise<IInvestmentOperationResponse> {

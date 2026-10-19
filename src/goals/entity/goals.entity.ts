@@ -31,7 +31,8 @@ export class OpeningPosition {
   @Prop({ required: true, trim: true, uppercase: true }) platform: string;
   @Prop({ required: true, trim: true, uppercase: true }) ticker: string;
   @Prop({ required: true, min: 0.00000001 }) quantity: number;
-  @Prop({ required: true, min: 0.00000001 }) unitPrice: number;
+  @Prop({ type: Number, min: 0.00000001, default: null })
+  unitPrice?: number | null;
   @Prop({ required: true, min: 0.00000001 }) totalAmount: number;
   @Prop({ required: true, enum: GOAL_CURRENCIES }) currency: GoalCurrency;
   @Prop({ type: Number, min: 0.00000001, default: null })

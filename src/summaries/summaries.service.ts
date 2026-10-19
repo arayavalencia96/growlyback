@@ -38,6 +38,7 @@ import {
   IPortfolioSummaryResponse,
   IRealizedProfitDetail,
 } from './interfaces/summaries.interface';
+import { resolveAverageCostAmount } from './average-cost';
 
 @Injectable()
 export class SummariesService {
@@ -457,6 +458,7 @@ export class SummariesService {
       platform: string;
       ticker: string;
       quantity: number;
+      unitPrice?: number | null;
       totalAmount: number;
       currency: 'ARS' | 'USD';
       exchangeRateArsPerUsd?: number | null;
@@ -479,7 +481,26 @@ export class SummariesService {
         rate: item.exchangeRateArsPerUsd,
       }),
     );
+    const averageCostOpening: PositionProjectionEvent[] = openingPositions.map(
+      (item, index) => ({
+        id: 'opening-average-cost:' + index,
+        date: new Date(0),
+        priority: 0,
+        platform: item.platform,
+        ticker: item.ticker,
+        direction: 'in',
+        quantity: moneyUnits(item.quantity),
+        amount: resolveAverageCostAmount(
+          item.quantity,
+          item.unitPrice,
+          item.totalAmount,
+        ),
+        currency: item.currency,
+        rate: item.exchangeRateArsPerUsd,
+      }),
+    );
     const pools = projectPositions(opening, [], until);
+    const averageCostPools = projectPositions(averageCostOpening, [], until);
     const events: PositionProjectionEvent[] = [
       ...operations.map((item) => ({
         id: item._id.toString(),
@@ -512,6 +533,41 @@ export class SummariesService {
         a.id.localeCompare(b.id),
     );
     const byId = new Map(operations.map((item) => [item._id.toString(), item]));
+    const averageCostEvents = new Map<string, PositionProjectionEvent>([
+      ...operations.map((item): [string, PositionProjectionEvent] => [
+        item._id.toString(),
+        {
+          id: item._id.toString(),
+          date: item.operationDate,
+          priority: item.type === 'buy' ? 1 : 2,
+          platform: item.platform,
+          ticker: item.ticker,
+          direction: item.type === 'buy' ? 'in' : 'out',
+          quantity: moneyUnits(item.quantity),
+          amount: resolveAverageCostAmount(
+            item.quantity,
+            item.unitPrice,
+            item.totalAmount ?? item.netAmount,
+          ),
+          currency: item.currency,
+          rate: item.exchangeRateArsPerUsd,
+        },
+      ]),
+      ...entries.map((item): [string, PositionProjectionEvent] => [
+        item._id,
+        {
+          id: item._id,
+          date: item.effectiveAt,
+          priority: item.kind === 'asset_in' ? 0 : 3,
+          platform: item.platform,
+          ticker: item.ticker,
+          direction: item.kind === 'asset_in' ? 'in' : 'out',
+          quantity:
+            BigInt(item.quantityUnits) * 10n ** BigInt(8 - item.quantityScale),
+          ...(item.kind === 'asset_in' ? { bookValue: item.bookValue } : {}),
+        },
+      ]),
+    ]);
     let totalBuyCost = this.zero(),
       totalSellProceeds = this.zero(),
       realizedProfit = this.zero();
@@ -549,6 +605,9 @@ export class SummariesService {
         }
       }
       projectPositions([], [event], until, pools);
+      const averageCostEvent = averageCostEvents.get(event.id);
+      if (averageCostEvent)
+        projectPositions([], [averageCostEvent], until, averageCostPools);
     }
     const openPositions: IOpenPositionSummary[] = [];
     let openPositionValueAtCost = this.zero();
@@ -557,6 +616,9 @@ export class SummariesService {
       state.hasUnconvertedAmounts ||= pool.hasUnconvertedAmounts;
       const quantity = Number(pool.amount) / 1e8,
         invested = this.poolValue(pool);
+      const averageCostInvested = this.poolValue(
+        averageCostPools.get(key) ?? pool,
+      );
       const separator = key.indexOf(':');
       openPositions.push({
         hasUnconvertedAmounts: pool.hasUnconvertedAmounts,
@@ -565,8 +627,8 @@ export class SummariesService {
         quantity,
         invested,
         averageCost: {
-          ars: this.round(invested.ars / quantity),
-          usd: this.round(invested.usd / quantity),
+          ars: this.round(averageCostInvested.ars / quantity),
+          usd: this.round(averageCostInvested.usd / quantity),
         },
       });
       openPositionValueAtCost = this.add(openPositionValueAtCost, invested);

@@ -216,7 +216,7 @@ export class GoalsService {
         ticker: position.ticker,
         assetId: position.assetId ?? '',
         quantity: position.quantity,
-        unitPrice: position.unitPrice,
+        unitPrice: position.unitPrice ?? null,
         totalAmount: position.totalAmount,
         currency: position.currency,
         exchangeRateArsPerUsd: position.exchangeRateArsPerUsd ?? null,

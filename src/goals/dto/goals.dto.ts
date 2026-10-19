@@ -51,10 +51,11 @@ export class OpeningPositionDto {
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)
   quantity: number;
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)
-  unitPrice: number;
+  unitPrice?: number | null;
   @ApiProperty()
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)

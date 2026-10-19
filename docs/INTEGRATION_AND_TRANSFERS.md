@@ -85,3 +85,19 @@ npm run build
 ```
 
 Para una prueba manual completa deben existir dos objetivos con efectivo o BTC/USDT en plataformas distintas. Verificar éxito, saldo insuficiente, origen inexistente, destino idéntico, doble clic y recuperación de una solicitud pendiente.
+
+### Diagnóstico en producción
+
+Al iniciar, `integration_config_loaded` informa URLs, longitudes y huellas
+truncadas de los secretos sin exponerlos. La huella `outboundFingerprint` de
+Growly debe coincidir con `inboundFingerprint` de Cashy.
+
+Cada llamada al peer emite:
+
+- `integration_peer_request_started`: destino y timeout efectivos;
+- `integration_peer_request_completed`: estado HTTP y duración;
+- `integration_peer_request_rejected`: respuesta HTTP rechazada;
+- `integration_peer_request_failed`: error de DNS, conexión, TLS o timeout;
+- `integration_request_failed`: error que finalmente recibe el frontend.
+
+Los eventos comparten `requestId` cuando pertenecen a la misma llamada saliente.

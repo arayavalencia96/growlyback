@@ -44,6 +44,7 @@ import type {
   LinkedAccountIdentity,
   RevocationReceipt,
 } from './link.contracts';
+import { randomUUID } from 'node:crypto';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -513,8 +514,21 @@ export class AccountLinkService implements OnModuleInit, OnModuleDestroy {
     validate: (value: unknown) => value is T,
   ): Promise<T> {
     this.config.assertEnabled();
+    const requestId = randomUUID();
+    const startedAt = Date.now();
+    const target = this.config.peerApiUrl + path;
+    this.logger.log(
+      JSON.stringify({
+        event: 'integration_peer_request_started',
+        requestId,
+        method: 'POST',
+        path,
+        target,
+        timeoutMs: this.config.requestTimeoutMs,
+      }),
+    );
     try {
-      const response = await fetch(this.config.peerApiUrl + path, {
+      const response = await fetch(target, {
         method: 'POST',
         headers: {
           Authorization: 'Bearer ' + this.config.outboundSecret,
@@ -525,6 +539,15 @@ export class AccountLinkService implements OnModuleInit, OnModuleDestroy {
         redirect: 'error',
       });
       const envelope: unknown = await response.json();
+      this.logger.log(
+        JSON.stringify({
+          event: 'integration_peer_request_completed',
+          requestId,
+          path,
+          statusCode: response.status,
+          durationMs: Date.now() - startedAt,
+        }),
+      );
       if (!response.ok) {
         if (response.status === 401) {
           throw new BadGatewayException(
@@ -551,7 +574,37 @@ export class AccountLinkService implements OnModuleInit, OnModuleDestroy {
       }
       return envelope.result;
     } catch (error) {
-      if (error instanceof HttpException) throw error;
+      if (error instanceof HttpException) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'integration_peer_request_rejected',
+            requestId,
+            path,
+            statusCode: error.getStatus(),
+            message: error.message,
+            durationMs: Date.now() - startedAt,
+          }),
+        );
+        throw error;
+      }
+      const cause =
+        error instanceof Error && error.cause && typeof error.cause === 'object'
+          ? (error.cause as { code?: unknown })
+          : undefined;
+      this.logger.error(
+        JSON.stringify({
+          event: 'integration_peer_request_failed',
+          requestId,
+          path,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          errorMessage:
+            error instanceof Error
+              ? error.message
+              : 'Unknown integration error',
+          causeCode: typeof cause?.code === 'string' ? cause.code : undefined,
+          durationMs: Date.now() - startedAt,
+        }),
+      );
       throw new ServiceUnavailableException(
         'No se pudo conectar con Cashy. Reintentá cuando esté disponible.',
       );

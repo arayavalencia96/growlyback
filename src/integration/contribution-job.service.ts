@@ -12,6 +12,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import type { IAuthenticatedUser } from '../common/auth/interfaces/auth.interface';
 import { GoalsService } from '../goals/goals.service';
+import { unavailableGoal, type GoalReference } from '../goals/goal-references';
 import { PortfolioLedgerService } from '../portfolio-ledger.service';
 import {
   GoalMovement,
@@ -41,6 +42,7 @@ import type {
 } from './contribution.contracts';
 
 export interface ContributionJobView {
+  goal: GoalReference;
   platform: string;
   movementDate: string;
   notes: string;
@@ -78,8 +80,20 @@ export class ContributionJobService implements OnModuleInit, OnModuleDestroy {
     private readonly config: IntegrationConfig,
   ) {}
 
-  private view(job: ContributionJob): ContributionJobView {
+  private async view(job: ContributionJob): Promise<ContributionJobView> {
+    const references = await this.goals.references([job.goalId], job.userId);
+    return this.viewWithGoal(
+      job,
+      references.get(job.goalId) ?? unavailableGoal(job.goalId),
+    );
+  }
+
+  private viewWithGoal(
+    job: ContributionJob,
+    goal: GoalReference,
+  ): ContributionJobView {
     return {
+      goal,
       platform: job.snapshot.platform,
       movementDate: job.snapshot.movementDate,
       notes: job.notes,
@@ -232,7 +246,10 @@ export class ContributionJobService implements OnModuleInit, OnModuleDestroy {
       .limit(50)
       .lean()
       .exec();
-    return rows.map((row) => this.view(row));
+    if (!rows.length) return [];
+    const references = await this.goals.references([goalId], userId);
+    const goal = references.get(goalId) ?? unavailableGoal(goalId);
+    return rows.map((row) => this.viewWithGoal(row, goal));
   }
   private input(job: ContributionJob): ReserveContributionInput {
     const p = job.snapshot;
@@ -382,7 +399,7 @@ export class ContributionJobService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async publish(job: ContributionJob): Promise<void> {
-    return this.coordinator.run(job.goalId, job.userId, () =>
+    return this.coordinator.settleAccepted(job.goalId, job.userId, () =>
       this.publishUnlocked(job),
     );
   }

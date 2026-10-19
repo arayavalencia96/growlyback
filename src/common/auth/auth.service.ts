@@ -64,7 +64,7 @@ export class AuthService {
     });
     const code = await this.assignVerificationCode(user, 'registration');
     await this.sendCodeEmail(user, code, 'registration', false);
-    return { user: this.mapUser(user), ...this.developmentCode(code) };
+    return { user: this.mapUser(user) };
   }
 
   async requestVerificationCode(emailValue: string): Promise<IAuthResponse> {
@@ -83,7 +83,7 @@ export class AuthService {
       throw new BadRequestException('User is already validated');
     const code = await this.assignVerificationCode(user, purpose);
     await this.sendCodeEmail(user, code, purpose, true);
-    return { user: this.mapUser(user), ...this.developmentCode(code) };
+    return { user: this.mapUser(user) };
   }
 
   async verifyCode(dto: VerifyCodeDto): Promise<IAuthResponse> {
@@ -365,13 +365,12 @@ export class AuthService {
     if (dto.name) user.name = dto.name.trim();
     if (dto.newPassword)
       user.passwordHash = await bcrypt.hash(dto.newPassword, 12);
-    let code: string | undefined;
     if (dto.email && dto.email.trim().toLowerCase() !== user.email) {
       const pendingEmail = dto.email.trim().toLowerCase();
       if (await this.userModel.exists({ email: pendingEmail }))
         throw new ConflictException('Email is already registered');
       user.pendingEmail = pendingEmail;
-      code = await this.assignVerificationCode(user, 'email_change');
+      const code = await this.assignVerificationCode(user, 'email_change');
       await this.sendCodeEmail(user, code, 'email_change', false);
     } else {
       await user.save();
@@ -382,10 +381,7 @@ export class AuthService {
         { revokedAt: new Date() },
       );
     }
-    return {
-      user: this.mapUser(user),
-      ...(code ? this.developmentCode(code) : {}),
-    };
+    return { user: this.mapUser(user) };
   }
 
   async getProfile(authenticated: IAuthenticatedUser): Promise<IUserResponse> {
@@ -570,12 +566,6 @@ export class AuthService {
     session.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await session.save();
     return { accessToken, refreshToken };
-  }
-
-  private developmentCode(code: string): { verificationCode?: string } {
-    return this.configService.get<string>('EXPOSE_VERIFICATION_CODE') !== 'true'
-      ? {}
-      : { verificationCode: code };
   }
 
   private mapUser(user: UserDocument): IUserResponse {

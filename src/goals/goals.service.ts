@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { DatabaseService } from '../common/services/database.service';
@@ -15,6 +11,9 @@ import { Goal, GoalDocument } from './entity/goals.entity';
 import { IGoalResponse } from './interfaces/goals.interface';
 
 import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+import { resolveAssetId } from '../assets/asset-catalog';
+import { ledgerContext } from '../common/services/ledger-context';
+import { goalReferences, type GoalReference } from './goal-references';
 
 @Injectable()
 export class GoalsService {
@@ -49,6 +48,7 @@ export class GoalsService {
           ...position,
           platform: position.platform.trim().toUpperCase(),
           ticker: position.ticker.trim().toUpperCase(),
+          assetId: resolveAssetId(position.ticker, position.assetId),
           exchangeRateArsPerUsd: position.exchangeRateArsPerUsd ?? null,
         }),
       ),
@@ -76,7 +76,10 @@ export class GoalsService {
   }
 
   async findOne(id: string): Promise<IGoalResponse> {
-    const goal = await this.databaseService.findByIdOrFail(this.goalModel, id);
+    const goal = await this.databaseService.findOneOrFail(this.goalModel, {
+      _id: id,
+      deletedAt: null,
+    });
     return this.mapToResponse(goal);
   }
 
@@ -84,6 +87,7 @@ export class GoalsService {
     const goal = await this.databaseService.findOneOrFail(this.goalModel, {
       _id: id,
       userId,
+      ...(ledgerContext.getStore()?.allowDeleted ? {} : { deletedAt: null }),
     });
     return this.mapToResponse(goal);
   }
@@ -134,19 +138,11 @@ export class GoalsService {
     id: string,
     userId: string,
   ): Promise<IGoalResponse> {
-    const current = await this.databaseService.findOneOrFail(this.goalModel, {
-      _id: id,
-      userId,
-    });
-    if (current.hasCashyContributionHistory)
-      throw new ConflictException(
-        'Este objetivo conserva historial de aportes Cashy. Podés pausarlo, pero no eliminarlo.',
-      );
-    const goal = await this.databaseService.deleteOneOrFail(this.goalModel, {
-      _id: id,
-      userId,
-      hasCashyContributionHistory: { $ne: true },
-    });
+    const goal = await this.databaseService.updateOneOrFail(
+      this.goalModel,
+      { _id: id, userId, deletedAt: null },
+      { $set: { deletedAt: new Date() } },
+    );
     return this.mapToResponse(goal);
   }
 
@@ -156,7 +152,7 @@ export class GoalsService {
   ): Promise<void> {
     await this.databaseService.updateOneOrFail(
       this.goalModel,
-      { _id: id, userId },
+      { _id: id, userId, deletedAt: null },
       { $set: { hasCashyContributionHistory: true } },
     );
   }
@@ -165,7 +161,7 @@ export class GoalsService {
     query: FindGoalsQueryDto,
     userId: string,
   ): Record<string, unknown> {
-    const filter: Record<string, unknown> = { userId };
+    const filter: Record<string, unknown> = { userId, deletedAt: null };
 
     if (query.type) {
       filter.type = query.type;
@@ -190,6 +186,13 @@ export class GoalsService {
     return filter;
   }
 
+  references(
+    ids: readonly string[],
+    userId: string,
+  ): Promise<Map<string, GoalReference>> {
+    return goalReferences(this.goalModel, userId, ids);
+  }
+
   private mapToResponse(goal: GoalDocument): IGoalResponse {
     return {
       id: goal._id.toString(),
@@ -211,6 +214,7 @@ export class GoalsService {
       openingPositions: (goal.openingPositions ?? []).map((position) => ({
         platform: position.platform,
         ticker: position.ticker,
+        assetId: position.assetId ?? '',
         quantity: position.quantity,
         unitPrice: position.unitPrice,
         totalAmount: position.totalAmount,

@@ -5,6 +5,7 @@ export type InvestmentOperationType =
   (typeof INVESTMENT_OPERATION_TYPES)[number];
 
 export interface IInvestmentOperationBase {
+  assetId?: string;
   goalId: string;
   userId: string;
   platform: string;

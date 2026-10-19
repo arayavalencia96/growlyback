@@ -9,9 +9,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './common/auth/auth.module';
 import { HealthModule } from './health/health.module';
+import { TransfersModule } from './transfers/transfers.module';
+import { AssetsModule } from './assets/assets.module';
 
 @Module({
   imports: [
+    AssetsModule,
+    TransfersModule,
     IntegrationModule,
     ConfigModule.forRoot({
       isGlobal: true,

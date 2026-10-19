@@ -20,6 +20,7 @@ import {
 import { IGoalMovementResponse } from './interfaces/goals-movements.interface';
 
 import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+import { newRecordDate } from '../common/services/record-date';
 
 @Injectable()
 export class GoalsMovementsService {
@@ -47,7 +48,10 @@ export class GoalsMovementsService {
   ): Promise<IGoalMovementResponse> {
     await this.goalsService.findOneOwned(dto.goalId, userId);
     this.assertUnlinkedSource(dto);
-    const payload = this.buildPayload(dto);
+    const payload = this.buildPayload({
+      ...dto,
+      movementDate: newRecordDate(dto.movementDate).toISOString(),
+    });
     await this.portfolioLedgerService.validate(dto.goalId, userId, {
       source: 'movement',
       id: 'new',

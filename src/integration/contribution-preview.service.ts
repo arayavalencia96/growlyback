@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { currentRecordDay } from '../common/services/record-date';
 import {
   ConflictException,
   ForbiddenException,
@@ -36,7 +37,9 @@ export class ContributionPreviewService {
     user: IAuthenticatedUser,
   ): Promise<CashyContributionPreview> {
     await this.goals.findOneOwned(dto.goalId, user.userId);
-    const movementDate = contributionDate(dto.movementDate);
+    const parsedDate = contributionDate(dto.movementDate);
+    const movementDate =
+      dto.movementDate === currentRecordDay() ? new Date() : parsedDate;
     const period = contributionPeriod(movementDate);
     if (period !== contributionPeriod())
       throw new ConflictException(

@@ -16,6 +16,8 @@ import {
 import { IInvestmentOperationResponse } from './interfaces/investment-operations.interface';
 
 import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+import { newRecordDate } from '../common/services/record-date';
+import { resolveAssetId } from '../assets/asset-catalog';
 
 @Injectable()
 export class InvestmentOperationsService {
@@ -42,7 +44,10 @@ export class InvestmentOperationsService {
     userId: string,
   ): Promise<IInvestmentOperationResponse> {
     await this.goalsService.findOneOwned(dto.goalId, userId);
-    const payload = this.buildPayload(dto);
+    const payload = this.buildPayload({
+      ...dto,
+      operationDate: newRecordDate(dto.operationDate).toISOString(),
+    });
     await this.portfolioLedgerService.validate(dto.goalId, userId, {
       source: 'operation',
       id: 'new',
@@ -117,6 +122,9 @@ export class InvestmentOperationsService {
       goalId: current.goalId.toString(),
       platform: dto.platform ?? current.platform,
       ticker: dto.ticker ?? current.ticker,
+      assetId:
+        dto.assetId ??
+        (dto.ticker === undefined ? current.assetId || undefined : undefined),
       type: dto.type ?? current.type,
       operationDate: dto.operationDate ?? current.operationDate.toISOString(),
       quantity: dto.quantity ?? current.quantity,
@@ -216,6 +224,7 @@ export class InvestmentOperationsService {
     return {
       platform: dto.platform.trim().toUpperCase(),
       ticker: dto.ticker.trim().toUpperCase(),
+      assetId: resolveAssetId(dto.ticker, dto.assetId),
       type: dto.type,
       operationDate: dto.operationDate
         ? new Date(dto.operationDate)
@@ -259,6 +268,7 @@ export class InvestmentOperationsService {
       userId: operation.userId,
       platform: operation.platform,
       ticker: operation.ticker,
+      assetId: operation.assetId ?? '',
       type: operation.type,
       operationDate: operation.operationDate.toISOString(),
       quantity: operation.quantity,

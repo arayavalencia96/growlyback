@@ -26,7 +26,7 @@ export interface IOpeningPosition {
   platform: string;
   ticker: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice?: number | null;
   totalAmount: number;
   currency: GoalCurrency;
   exchangeRateArsPerUsd?: number | null;

@@ -54,13 +54,14 @@ export class IntegrationConfig {
       }
       return value.replace(/\/+$/, '');
     };
-    const positiveInteger = (
+    const integerInRange = (
       name: string,
       fallback: number,
+      minimum: number,
       maximum: number,
     ): number => {
       const value = Number(config.get<string>(name) ?? fallback);
-      if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
+      if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
         throw new Error('Invalid configuration: ' + name);
       }
       return value;
@@ -80,19 +81,22 @@ export class IntegrationConfig {
         'Integration requires distinct inbound/outbound secrets of at least 32 characters.',
       );
     }
-    this.requestTimeoutMs = positiveInteger(
+    this.requestTimeoutMs = integerInRange(
       'INTEGRATION_REQUEST_TIMEOUT_MS',
       5000,
+      1000,
       30000,
     );
-    this.authorizationTtlSeconds = positiveInteger(
+    this.authorizationTtlSeconds = integerInRange(
       'INTEGRATION_AUTHORIZATION_TTL_SECONDS',
       120,
+      1,
       600,
     );
-    this.reservationTtlSeconds = positiveInteger(
+    this.reservationTtlSeconds = integerInRange(
       'INTEGRATION_RESERVATION_TTL_SECONDS',
       300,
+      1,
       1800,
     );
     this.logger.log(

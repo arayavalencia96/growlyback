@@ -16,6 +16,12 @@ import { GOAL_CURRENCIES } from '../../goals/interfaces/goals.interface';
 import { INVESTMENT_OPERATION_TYPES } from '../interfaces/investment-operations.interface';
 
 export class CreateInvestmentOperationDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  assetId?: string;
   @ApiProperty() @IsMongoId() goalId: string;
   @ApiProperty({ example: 'IOL' })
   @IsString()

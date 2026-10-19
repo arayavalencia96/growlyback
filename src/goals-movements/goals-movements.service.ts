@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { DatabaseService } from '../common/services/database.service';
@@ -15,9 +19,13 @@ import {
 } from './entity/goals-movements.entity';
 import { IGoalMovementResponse } from './interfaces/goals-movements.interface';
 
+import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+import { newRecordDate } from '../common/services/record-date';
+
 @Injectable()
 export class GoalsMovementsService {
   constructor(
+    private readonly coordinator: LedgerCoordinator,
     @InjectModel(GoalMovement.name)
     private readonly movementModel: Model<GoalMovementDocument>,
     private readonly databaseService: DatabaseService,
@@ -29,8 +37,21 @@ export class GoalsMovementsService {
     dto: CreateGoalMovementDto,
     userId: string,
   ): Promise<IGoalMovementResponse> {
+    return this.coordinator.run(dto.goalId, userId, () =>
+      this.createUnlocked(dto, userId),
+    );
+  }
+
+  private async createUnlocked(
+    dto: CreateGoalMovementDto,
+    userId: string,
+  ): Promise<IGoalMovementResponse> {
     await this.goalsService.findOneOwned(dto.goalId, userId);
-    const payload = this.buildPayload(dto);
+    this.assertUnlinkedSource(dto);
+    const payload = this.buildPayload({
+      ...dto,
+      movementDate: newRecordDate(dto.movementDate).toISOString(),
+    });
     await this.portfolioLedgerService.validate(dto.goalId, userId, {
       source: 'movement',
       id: 'new',
@@ -78,10 +99,41 @@ export class GoalsMovementsService {
     dto: UpdateGoalMovementDto,
     userId: string,
   ): Promise<IGoalMovementResponse> {
+    const row = await this.databaseService.findOneOrFail(this.movementModel, {
+      _id: id,
+      userId,
+    });
+    return this.coordinator.run(row.goalId.toString(), userId, () =>
+      this.updateUnlocked(id, dto, userId),
+    );
+  }
+
+  private async updateUnlocked(
+    id: string,
+    dto: UpdateGoalMovementDto,
+    userId: string,
+  ): Promise<IGoalMovementResponse> {
     const current = await this.databaseService.findOneOrFail(
       this.movementModel,
       { _id: id, userId },
     );
+    if (current.fundingSource === 'cashy')
+      throw new ConflictException(
+        'Los aportes vinculados requieren el flujo de corrección de Cashy. Usá el panel de aportes vinculados.',
+      );
+    this.assertUnlinkedSource({
+      type: dto.type ?? current.type,
+      fundingSource: dto.fundingSource,
+    });
+    if (
+      (dto.type ?? current.type) === 'contribution' &&
+      current.type === 'contribution' &&
+      dto.fundingSource !== undefined &&
+      dto.fundingSource !== (current.fundingSource ?? 'legacy')
+    )
+      throw new ConflictException(
+        'No se puede cambiar el origen de un aporte existente en esta etapa.',
+      );
     const payload = this.buildPayload({
       goalId: current.goalId.toString(),
       type: dto.type ?? current.type,
@@ -95,6 +147,8 @@ export class GoalsMovementsService {
       platform: dto.platform ?? current.platform ?? 'GENERAL',
       notes: dto.notes === undefined ? current.notes : dto.notes,
     });
+    if (payload.type === 'contribution' && current.type === 'contribution')
+      payload.fundingSource = current.fundingSource ?? 'legacy';
     await this.portfolioLedgerService.validate(
       current.goalId.toString(),
       userId,
@@ -109,19 +163,43 @@ export class GoalsMovementsService {
       },
       { source: 'movement', id },
     );
+    const withdrawalPayload = { ...payload };
+    delete withdrawalPayload.fundingSource;
     const movement = await this.databaseService.updateOneOrFail(
       this.movementModel,
       { _id: id, userId },
-      payload,
+      payload.type === 'withdrawal'
+        ? {
+            $set: withdrawalPayload,
+            $unset: { fundingSource: 1 },
+          }
+        : payload,
     );
     return this.mapToResponse(movement);
   }
 
   async remove(id: string, userId: string): Promise<IGoalMovementResponse> {
+    const row = await this.databaseService.findOneOrFail(this.movementModel, {
+      _id: id,
+      userId,
+    });
+    return this.coordinator.run(row.goalId.toString(), userId, () =>
+      this.removeUnlocked(id, userId),
+    );
+  }
+
+  private async removeUnlocked(
+    id: string,
+    userId: string,
+  ): Promise<IGoalMovementResponse> {
     const current = await this.databaseService.findOneOrFail(
       this.movementModel,
       { _id: id, userId },
     );
+    if (current.fundingSource === 'cashy')
+      throw new ConflictException(
+        'Los aportes vinculados requieren una anulación coordinada con Cashy. Usá el panel de aportes vinculados.',
+      );
     await this.portfolioLedgerService.validate(
       current.goalId.toString(),
       userId,
@@ -136,9 +214,35 @@ export class GoalsMovementsService {
     );
   }
 
-  private buildPayload(dto: CreateGoalMovementDto) {
+  private assertUnlinkedSource(
+    dto: Pick<CreateGoalMovementDto, 'type' | 'fundingSource'>,
+  ): void {
+    if (dto.fundingSource === 'cashy')
+      throw new ConflictException(
+        'Los aportes de Cashy deben confirmarse mediante la integración, no por esta ruta.',
+      );
+    if (dto.type === 'withdrawal' && dto.fundingSource !== undefined)
+      throw new BadRequestException(
+        'Las extracciones no tienen un origen de aporte.',
+      );
+  }
+
+  private buildPayload(dto: CreateGoalMovementDto): {
+    type: CreateGoalMovementDto['type'];
+    amount: number;
+    currency: CreateGoalMovementDto['currency'];
+    movementDate: Date;
+    exchangeRateArsPerUsd: number | null;
+    platform: string;
+    notes: string | null;
+    fundingSource?: GoalMovement['fundingSource'];
+  } {
     return {
       type: dto.type,
+      fundingSource:
+        dto.type === 'contribution'
+          ? (dto.fundingSource ?? 'external')
+          : undefined,
       amount: dto.amount,
       currency: dto.currency,
       movementDate: dto.movementDate ? new Date(dto.movementDate) : new Date(),
@@ -154,7 +258,7 @@ export class GoalsMovementsService {
   ): Promise<GoalMovementDocument[]> {
     return this.databaseService.findAll(
       this.movementModel,
-      { goalId: new Types.ObjectId(goalId), userId },
+      { goalId: new Types.ObjectId(goalId), userId, voided: { $ne: true } },
       { sort: { movementDate: 1, createdAt: 1 } },
     );
   }
@@ -163,7 +267,7 @@ export class GoalsMovementsService {
     query: FindGoalMovementsQueryDto,
     userId: string,
   ): Record<string, unknown> {
-    const filter: Record<string, unknown> = { userId };
+    const filter: Record<string, unknown> = { userId, voided: { $ne: true } };
     if (query.goalId) filter.goalId = new Types.ObjectId(query.goalId);
     if (query.type) filter.type = query.type;
     if (query.currency) filter.currency = query.currency;
@@ -182,6 +286,9 @@ export class GoalsMovementsService {
       goalId: movement.goalId.toString(),
       userId: movement.userId,
       type: movement.type,
+      ...(movement.type === 'contribution'
+        ? { fundingSource: movement.fundingSource ?? 'legacy' }
+        : {}),
       amount: movement.amount,
       currency: movement.currency,
       movementDate: movement.movementDate.toISOString(),

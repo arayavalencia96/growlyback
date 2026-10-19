@@ -56,14 +56,13 @@ cp .env.template .env
 Completa `.env`:
 
 ```env
-PORT=3000
+PORT=3001
+CORS_ALLOWED_ORIGINS=http://localhost:5173,https://growly-1a68d.web.app
 
 MONGO_URI=mongodb+srv://USUARIO:PASSWORD@CLUSTER.mongodb.net/growly?retryWrites=true&w=majority&appName=CLUSTER
 
 JWT_ACCESS_SECRET=SECRETO_ALEATORIO_PARA_ACCESS_TOKEN
 JWT_REFRESH_SECRET=SECRETO_ALEATORIO_DISTINTO_PARA_REFRESH_TOKEN
-
-EXPOSE_VERIFICATION_CODE=true
 
 BREVO_API_KEY=TU_API_KEY
 BREVO_SENDER_EMAIL=correo-verificado@dominio.com
@@ -86,7 +85,6 @@ Ejecuta el comando dos veces. Ambos secretos deben ser diferentes.
 Consideraciones:
 
 - No subas `.env` al repositorio.
-- Usa `EXPOSE_VERIFICATION_CODE=true` solamente en desarrollo. En producción debe ser `false`.
 - Codifica para URL los caracteres especiales de la contraseña de MongoDB.
 - Especifica `/growly` en la URI para no utilizar accidentalmente la base predeterminada `test`.
 - Las URLs del frontend son rutas de la SPA, no endpoints del backend.
@@ -119,11 +117,11 @@ npm run start:dev
 La API estará disponible en:
 
 ```text
-http://localhost:3000/api/v1
+http://localhost:3001/api/v1
 ```
 
-- Swagger: `http://localhost:3000/api/v1/docs`
-- Health check: `http://localhost:3000/api/v1/health`
+- Swagger: `http://localhost:3001/api/v1/docs`
+- Health check: `http://localhost:3001/api/v1/health`
 
 El health check valida la API y la conexión con MongoDB.
 
@@ -131,7 +129,7 @@ El health check valida la API y la conexión con MongoDB.
 
 ```bash
 docker build -t growlyback .
-docker run --name growlyback --env-file .env -p 3000:3000 growlyback
+docker run --name growlyback --env-file .env -p 3001:3001 growlyback
 ```
 
 Para detener y eliminar el contenedor:
@@ -173,6 +171,9 @@ npm run build
 - `goals-movements`: aportes, extracciones y saldos iniciales.
 - `investment-operations`: compras, ventas y posiciones iniciales.
 - `summaries`: resumen por objetivo y resumen global por plataforma.
+- `assets`: catálogo confiable de activos transferibles.
+- `transfers`: registro idempotente de transferencias internas entre objetivos y plataformas.
+- `integration`: vinculación con Cashy, presupuesto mensual y aportes asociados.
 - `health`: disponibilidad de la API y MongoDB.
 - `common`: autenticación, base de datos, correo, contratos e infraestructura compartida.
 
@@ -192,8 +193,13 @@ La aplicación utiliza una arquitectura modular de NestJS. Cada dominio mantiene
 - Mongoose y los servicios compartidos encapsulan la persistencia.
 - Cada recurso se filtra por el `userId` autenticado.
 - La baja de usuario es lógica.
+- La baja de objetivos es lógica y conserva referencias históricas.
 - El access token es de corta duración y el refresh token pertenece a una sesión persistida.
 - Las respuestas REST respetan un contrato uniforme.
+
+La configuración y las reglas completas de integración, aportes, transferencias,
+idempotencia y baja de objetivos están en
+[`docs/INTEGRATION_AND_TRANSFERS.md`](docs/INTEGRATION_AND_TRANSFERS.md).
 
 ```ts
 interface IResult<T> {
@@ -222,7 +228,7 @@ La contraseña requiere ocho caracteres como mínimo, una mayúscula, un número
 La documentación interactiva está en:
 
 ```text
-http://localhost:3000/api/v1/docs
+http://localhost:3001/api/v1/docs
 ```
 
 ## Commits y Husky

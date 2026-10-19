@@ -12,6 +12,7 @@ import type { InvestmentOperationType } from '../interfaces/investment-operation
   versionKey: false,
 })
 export class InvestmentOperation {
+  @Prop({ type: String, default: '', index: true }) assetId: string;
   @Prop({ type: Types.ObjectId, ref: Goal.name, required: true, index: true })
   goalId: Types.ObjectId;
   @Prop({ required: true, trim: true, index: true }) userId: string;

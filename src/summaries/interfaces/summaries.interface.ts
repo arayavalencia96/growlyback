@@ -6,6 +6,7 @@ export interface IMoneyTotals {
 }
 
 export interface IOpenPositionSummary {
+  hasUnconvertedAmounts: boolean;
   platform: string;
   ticker: string;
   quantity: number;
@@ -44,6 +45,10 @@ export interface IGoalSummaryResponse {
   contributions: IMoneyTotals;
   withdrawals: IMoneyTotals;
   netContributions: IMoneyTotals;
+  transferIn: IMoneyTotals;
+  transferOut: IMoneyTotals;
+  transferFees: IMoneyTotals;
+  transfersCount: number;
   totalBuyCost: IMoneyTotals;
   totalSellProceeds: IMoneyTotals;
   realizedProfit: IMoneyTotals;

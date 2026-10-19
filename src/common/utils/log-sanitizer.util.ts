@@ -6,6 +6,11 @@ const MAX_STRING_LENGTH = 2_000;
 
 const SENSITIVE_KEYS = new Set([
   'authorization',
+  'authorizationurl',
+  'redirecturl',
+  'verifier',
+  'codechallenge',
+  'state',
   'code',
   'cookie',
   'jwtaccesssecret',

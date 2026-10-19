@@ -13,13 +13,21 @@ import {
   Min,
 } from 'class-validator';
 import { GOAL_CURRENCIES } from '../../goals/interfaces/goals.interface';
-import { GOAL_MOVEMENT_TYPES } from '../interfaces/goals-movements.interface';
+import {
+  CONTRIBUTION_FUNDING_SOURCES,
+  GOAL_MOVEMENT_TYPES,
+  type ContributionFundingSource,
+} from '../interfaces/goals-movements.interface';
 
 export class CreateGoalMovementDto {
   @ApiProperty() @IsMongoId() goalId: string;
   @ApiProperty({ enum: GOAL_MOVEMENT_TYPES })
   @IsIn(GOAL_MOVEMENT_TYPES)
   type: (typeof GOAL_MOVEMENT_TYPES)[number];
+  @ApiPropertyOptional({ enum: CONTRIBUTION_FUNDING_SOURCES })
+  @IsOptional()
+  @IsIn(CONTRIBUTION_FUNDING_SOURCES)
+  fundingSource?: ContributionFundingSource;
   @ApiProperty({ example: 1000.5 })
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)

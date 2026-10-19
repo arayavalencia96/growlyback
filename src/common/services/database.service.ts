@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { HydratedDocument, Model, ProjectionType, UpdateQuery } from 'mongoose';
 
+import { ledgerSession } from './ledger-context';
+
 type DatabaseFilter = Record<string, unknown>;
 
 export interface IDatabaseListOptions<TDocument> {
@@ -20,7 +22,11 @@ export class DatabaseService {
     model: Model<TDocument>,
     payload: Partial<TDocument>,
   ): Promise<HydratedDocument<TDocument>> {
-    return model.create(payload);
+    const session = ledgerSession();
+    if (!session) return model.create(payload);
+    const document = new model(payload) as HydratedDocument<TDocument>;
+    await document.save({ session });
+    return document;
   }
 
   async findAll<TDocument>(
@@ -46,7 +52,7 @@ export class DatabaseService {
       query.limit(options.limit);
     }
 
-    return query.exec();
+    return query.session(ledgerSession()).exec();
   }
 
   async findOne<TDocument>(
@@ -64,7 +70,7 @@ export class DatabaseService {
       query.sort(options.sort);
     }
 
-    return query.exec();
+    return query.session(ledgerSession()).exec();
   }
 
   async findById<TDocument>(
@@ -78,7 +84,7 @@ export class DatabaseService {
       query.select(select);
     }
 
-    return query.exec();
+    return query.session(ledgerSession()).exec();
   }
 
   async findByIdOrFail<TDocument>(
@@ -119,6 +125,7 @@ export class DatabaseService {
         returnDocument: 'after',
         upsert: options.upsert ?? false,
         runValidators: true,
+        session: ledgerSession(),
       })
       .exec();
   }
@@ -147,6 +154,7 @@ export class DatabaseService {
       .findOneAndUpdate(filter as never, payload, {
         returnDocument: 'after',
         runValidators: true,
+        session: ledgerSession(),
       })
       .exec();
 
@@ -161,7 +169,7 @@ export class DatabaseService {
     model: Model<TDocument>,
     id: string,
   ): Promise<HydratedDocument<TDocument> | null> {
-    return model.findByIdAndDelete(id).exec();
+    return model.findByIdAndDelete(id).session(ledgerSession()).exec();
   }
 
   async deleteByIdOrFail<TDocument>(
@@ -181,7 +189,10 @@ export class DatabaseService {
     model: Model<TDocument>,
     filter: DatabaseFilter,
   ): Promise<HydratedDocument<TDocument>> {
-    const document = await model.findOneAndDelete(filter as never).exec();
+    const document = await model
+      .findOneAndDelete(filter as never)
+      .session(ledgerSession())
+      .exec();
 
     if (!document) {
       throw new NotFoundException('Document was not found');

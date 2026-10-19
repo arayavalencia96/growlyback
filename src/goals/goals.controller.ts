@@ -118,7 +118,8 @@ export class GoalsController {
     return {
       result: goal,
       message: 'Goal deleted successfully',
-      description: 'The goal was removed from MongoDB Atlas',
+      description:
+        'The goal was removed from the active portfolio; linked history is retained',
       statuscode: HttpStatus.OK,
       ok: true,
     };

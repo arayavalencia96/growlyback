@@ -27,6 +27,7 @@ const OpeningCashBalanceSchema =
 
 @Schema({ _id: false })
 export class OpeningPosition {
+  @Prop({ type: String, default: '' }) assetId: string;
   @Prop({ required: true, trim: true, uppercase: true }) platform: string;
   @Prop({ required: true, trim: true, uppercase: true }) ticker: string;
   @Prop({ required: true, min: 0.00000001 }) quantity: number;
@@ -41,6 +42,9 @@ const OpeningPositionSchema = SchemaFactory.createForClass(OpeningPosition);
 
 @Schema({ timestamps: true, collection: 'goals', versionKey: false })
 export class Goal {
+  @Prop({ type: Date, default: null }) deletedAt: Date | null;
+  @Prop({ default: 0 }) ledgerVersion: number;
+  @Prop({ type: String }) cashyAdjustmentLock?: string;
   @Prop({ required: true, trim: true, index: true })
   userId: string;
 
@@ -64,6 +68,8 @@ export class Goal {
 
   @Prop({ required: true, enum: GOAL_STATUSES, default: 'active', index: true })
   status: GoalStatus;
+  @Prop({ default: false }) hasCashyContributionHistory: boolean;
+  @Prop({ default: false }) hasTransferHistory: boolean;
 
   @Prop({
     required: true,

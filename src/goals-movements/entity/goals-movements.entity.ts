@@ -5,14 +5,27 @@ import { GOAL_CURRENCIES } from '../../goals/interfaces/goals.interface';
 import type { GoalCurrency } from '../../goals/interfaces/goals.interface';
 import { GOAL_MOVEMENT_TYPES } from '../interfaces/goals-movements.interface';
 import type { GoalMovementType } from '../interfaces/goals-movements.interface';
+import type { StoredFundingSource } from '../interfaces/goals-movements.interface';
 
 @Schema({ timestamps: true, collection: 'goal_movements', versionKey: false })
 export class GoalMovement {
+  @Prop({ default: false }) voided: boolean;
+  @Prop({ type: Date }) voidedAt?: Date;
   @Prop({ type: Types.ObjectId, ref: Goal.name, required: true, index: true })
   goalId: Types.ObjectId;
   @Prop({ required: true, trim: true, index: true }) userId: string;
   @Prop({ required: true, enum: GOAL_MOVEMENT_TYPES, index: true })
   type: GoalMovementType;
+  @Prop({ type: String, enum: ['external', 'cashy', 'legacy'] })
+  fundingSource?: StoredFundingSource;
+  @Prop({ type: Object }) cashyContribution?: {
+    id: string;
+    linkId: string;
+    allocationId: string;
+    period: string;
+    allocationAmountMinor: number;
+    exchangeRateArsPerUsd: number;
+  };
   @Prop({ required: true, min: 0.00000001 }) amount: number;
   @Prop({ required: true, enum: GOAL_CURRENCIES, index: true })
   currency: GoalCurrency;

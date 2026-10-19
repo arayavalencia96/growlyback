@@ -17,5 +17,5 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./package.json
 USER node
-EXPOSE 3000
+EXPOSE 3001
 CMD ["node", "dist/main.js"]

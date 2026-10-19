@@ -6,11 +6,23 @@ export interface IMoneyTotals {
 }
 
 export interface IOpenPositionSummary {
+  hasUnconvertedAmounts: boolean;
   platform: string;
   ticker: string;
   quantity: number;
   averageCost: IMoneyTotals;
   invested: IMoneyTotals;
+}
+
+export interface IRealizedProfitDetail {
+  operationId: string;
+  platform: string;
+  ticker: string;
+  quantity: number;
+  operationDate: Date;
+  costBasis: IMoneyTotals;
+  proceeds: IMoneyTotals;
+  profitOrLoss: IMoneyTotals;
 }
 
 export interface ICashBalanceSummary {
@@ -33,9 +45,14 @@ export interface IGoalSummaryResponse {
   contributions: IMoneyTotals;
   withdrawals: IMoneyTotals;
   netContributions: IMoneyTotals;
+  transferIn: IMoneyTotals;
+  transferOut: IMoneyTotals;
+  transferFees: IMoneyTotals;
+  transfersCount: number;
   totalBuyCost: IMoneyTotals;
   totalSellProceeds: IMoneyTotals;
   realizedProfit: IMoneyTotals;
+  realizedProfitDetails: IRealizedProfitDetail[];
   cashBalance: IMoneyTotals;
   cashBalances: ICashBalanceSummary[];
   platformBookValues: IPlatformBookValue[];

@@ -10,9 +10,15 @@ import {
 import { Goal, GoalDocument } from './entity/goals.entity';
 import { IGoalResponse } from './interfaces/goals.interface';
 
+import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+import { resolveAssetId } from '../assets/asset-catalog';
+import { ledgerContext } from '../common/services/ledger-context';
+import { goalReferences, type GoalReference } from './goal-references';
+
 @Injectable()
 export class GoalsService {
   constructor(
+    private readonly coordinator: LedgerCoordinator,
     @InjectModel(Goal.name) private readonly goalModel: Model<GoalDocument>,
     private readonly databaseService: DatabaseService,
   ) {}
@@ -42,6 +48,7 @@ export class GoalsService {
           ...position,
           platform: position.platform.trim().toUpperCase(),
           ticker: position.ticker.trim().toUpperCase(),
+          assetId: resolveAssetId(position.ticker, position.assetId),
           exchangeRateArsPerUsd: position.exchangeRateArsPerUsd ?? null,
         }),
       ),
@@ -69,7 +76,10 @@ export class GoalsService {
   }
 
   async findOne(id: string): Promise<IGoalResponse> {
-    const goal = await this.databaseService.findByIdOrFail(this.goalModel, id);
+    const goal = await this.databaseService.findOneOrFail(this.goalModel, {
+      _id: id,
+      deletedAt: null,
+    });
     return this.mapToResponse(goal);
   }
 
@@ -77,11 +87,22 @@ export class GoalsService {
     const goal = await this.databaseService.findOneOrFail(this.goalModel, {
       _id: id,
       userId,
+      ...(ledgerContext.getStore()?.allowDeleted ? {} : { deletedAt: null }),
     });
     return this.mapToResponse(goal);
   }
 
   async update(
+    id: string,
+    dto: UpdateGoalDto,
+    userId: string,
+  ): Promise<IGoalResponse> {
+    return this.coordinator.run(id, userId, () =>
+      this.updateUnlocked(id, dto, userId),
+    );
+  }
+
+  private async updateUnlocked(
     id: string,
     updateGoalDto: UpdateGoalDto,
     userId: string,
@@ -108,18 +129,39 @@ export class GoalsService {
   }
 
   async remove(id: string, userId: string): Promise<IGoalResponse> {
-    const goal = await this.databaseService.deleteOneOrFail(this.goalModel, {
-      _id: id,
-      userId,
-    });
+    return this.coordinator.run(id, userId, () =>
+      this.removeUnlocked(id, userId),
+    );
+  }
+
+  private async removeUnlocked(
+    id: string,
+    userId: string,
+  ): Promise<IGoalResponse> {
+    const goal = await this.databaseService.updateOneOrFail(
+      this.goalModel,
+      { _id: id, userId, deletedAt: null },
+      { $set: { deletedAt: new Date() } },
+    );
     return this.mapToResponse(goal);
+  }
+
+  async protectCashyContributionHistory(
+    id: string,
+    userId: string,
+  ): Promise<void> {
+    await this.databaseService.updateOneOrFail(
+      this.goalModel,
+      { _id: id, userId, deletedAt: null },
+      { $set: { hasCashyContributionHistory: true } },
+    );
   }
 
   private buildFilter(
     query: FindGoalsQueryDto,
     userId: string,
   ): Record<string, unknown> {
-    const filter: Record<string, unknown> = { userId };
+    const filter: Record<string, unknown> = { userId, deletedAt: null };
 
     if (query.type) {
       filter.type = query.type;
@@ -144,6 +186,13 @@ export class GoalsService {
     return filter;
   }
 
+  references(
+    ids: readonly string[],
+    userId: string,
+  ): Promise<Map<string, GoalReference>> {
+    return goalReferences(this.goalModel, userId, ids);
+  }
+
   private mapToResponse(goal: GoalDocument): IGoalResponse {
     return {
       id: goal._id.toString(),
@@ -165,6 +214,7 @@ export class GoalsService {
       openingPositions: (goal.openingPositions ?? []).map((position) => ({
         platform: position.platform,
         ticker: position.ticker,
+        assetId: position.assetId ?? '',
         quantity: position.quantity,
         unitPrice: position.unitPrice,
         totalAmount: position.totalAmount,

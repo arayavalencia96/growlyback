@@ -15,9 +15,14 @@ import {
 } from './entity/investment-operations.entity';
 import { IInvestmentOperationResponse } from './interfaces/investment-operations.interface';
 
+import { LedgerCoordinator } from '../common/services/ledger-coordinator.service';
+import { newRecordDate } from '../common/services/record-date';
+import { resolveAssetId } from '../assets/asset-catalog';
+
 @Injectable()
 export class InvestmentOperationsService {
   constructor(
+    private readonly coordinator: LedgerCoordinator,
     @InjectModel(InvestmentOperation.name)
     private readonly operationModel: Model<InvestmentOperationDocument>,
     private readonly databaseService: DatabaseService,
@@ -29,8 +34,20 @@ export class InvestmentOperationsService {
     dto: CreateInvestmentOperationDto,
     userId: string,
   ): Promise<IInvestmentOperationResponse> {
+    return this.coordinator.run(dto.goalId, userId, () =>
+      this.createUnlocked(dto, userId),
+    );
+  }
+
+  private async createUnlocked(
+    dto: CreateInvestmentOperationDto,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
     await this.goalsService.findOneOwned(dto.goalId, userId);
-    const payload = this.buildPayload(dto);
+    const payload = this.buildPayload({
+      ...dto,
+      operationDate: newRecordDate(dto.operationDate).toISOString(),
+    });
     await this.portfolioLedgerService.validate(dto.goalId, userId, {
       source: 'operation',
       id: 'new',
@@ -83,6 +100,20 @@ export class InvestmentOperationsService {
     dto: UpdateInvestmentOperationDto,
     userId: string,
   ): Promise<IInvestmentOperationResponse> {
+    const row = await this.databaseService.findOneOrFail(this.operationModel, {
+      _id: id,
+      userId,
+    });
+    return this.coordinator.run(row.goalId.toString(), userId, () =>
+      this.updateUnlocked(id, dto, userId),
+    );
+  }
+
+  private async updateUnlocked(
+    id: string,
+    dto: UpdateInvestmentOperationDto,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
     const current = await this.databaseService.findOneOrFail(
       this.operationModel,
       { _id: id, userId },
@@ -91,6 +122,9 @@ export class InvestmentOperationsService {
       goalId: current.goalId.toString(),
       platform: dto.platform ?? current.platform,
       ticker: dto.ticker ?? current.ticker,
+      assetId:
+        dto.assetId ??
+        (dto.ticker === undefined ? current.assetId || undefined : undefined),
       type: dto.type ?? current.type,
       operationDate: dto.operationDate ?? current.operationDate.toISOString(),
       quantity: dto.quantity ?? current.quantity,
@@ -129,6 +163,19 @@ export class InvestmentOperationsService {
   }
 
   async remove(
+    id: string,
+    userId: string,
+  ): Promise<IInvestmentOperationResponse> {
+    const row = await this.databaseService.findOneOrFail(this.operationModel, {
+      _id: id,
+      userId,
+    });
+    return this.coordinator.run(row.goalId.toString(), userId, () =>
+      this.removeUnlocked(id, userId),
+    );
+  }
+
+  private async removeUnlocked(
     id: string,
     userId: string,
   ): Promise<IInvestmentOperationResponse> {
@@ -177,6 +224,7 @@ export class InvestmentOperationsService {
     return {
       platform: dto.platform.trim().toUpperCase(),
       ticker: dto.ticker.trim().toUpperCase(),
+      assetId: resolveAssetId(dto.ticker, dto.assetId),
       type: dto.type,
       operationDate: dto.operationDate
         ? new Date(dto.operationDate)
@@ -220,6 +268,7 @@ export class InvestmentOperationsService {
       userId: operation.userId,
       platform: operation.platform,
       ticker: operation.ticker,
+      assetId: operation.assetId ?? '',
       type: operation.type,
       operationDate: operation.operationDate.toISOString(),
       quantity: operation.quantity,

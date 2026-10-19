@@ -47,5 +47,4 @@ export interface IAuthResponse {
   accessToken?: string;
   refreshToken?: string;
   passwordChangeToken?: string;
-  verificationCode?: string;
 }

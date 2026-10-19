@@ -22,6 +22,7 @@ export interface IOpeningCashBalance {
 }
 
 export interface IOpeningPosition {
+  assetId?: string;
   platform: string;
   ticker: string;
   quantity: number;

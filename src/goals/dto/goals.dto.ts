@@ -39,6 +39,12 @@ export class OpeningCashBalanceDto {
 }
 
 export class OpeningPositionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  assetId?: string;
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) platform: string;
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(30) ticker: string;
   @ApiProperty()
